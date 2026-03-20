@@ -15,6 +15,7 @@
   "files": [
     "dist",
     "src",
+    "types",
     "README.md",
     "LICENSE"
   ],
@@ -59,6 +60,7 @@
   "jest": {
     "preset": "ts-jest/presets/default-esm",
     "extensionsToTreatAsEsm": [".ts"],
+    "setupFiles": ["./tests/jest.setup.ts"],
     "transform": {
       "^.+\\.tsx?$": [
         "ts-jest",
@@ -66,11 +68,12 @@
           "useESM": true,
           "tsconfig": {
             "module": "ES2022",
-            "moduleResolution": "bundler",
+            "moduleResolution": "node",
             "strict": true,
             "esModuleInterop": true,
             "skipLibCheck": true,
-            "types": ["@webgpu/types", "jest"]
+            "typeRoots": ["./node_modules/@types", "./node_modules/@webgpu", "./types"],
+            "types": ["jest"]
           }
         }
       ]

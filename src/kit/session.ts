@@ -111,6 +111,11 @@ export interface CreateCallbacks {
     onProgress?: (event: CreateProgressEvent) => void;
 }
 
+/** Base delay (ms) for the first checkpoint fetch retry. Subsequent retries double this. */
+const RETRY_BASE_DELAY_MS  = 500;
+/** Multiplier applied to delay on each successive retry. */
+const RETRY_BACKOFF_FACTOR = 2;
+
 // ── MambaSession ───────────────────────────────────────────────────────────────
 
 export class MambaSession {
@@ -216,7 +221,7 @@ export class MambaSession {
                 } catch (err) {
                     lastErr = err;
                     if (attempt < fetchRetries) {
-                        await sleep(500 * Math.pow(2, attempt)); // 500ms, 1000ms
+                        await sleep(RETRY_BASE_DELAY_MS * Math.pow(RETRY_BACKOFF_FACTOR, attempt));
                     }
                 }
             }

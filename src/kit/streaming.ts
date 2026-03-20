@@ -7,6 +7,9 @@
 
 import type { MambaModel, SamplingOptions } from 'mambacode.js';
 
+/** Minimum effective temperature — avoids division by zero in sampling. */
+const MIN_TEMPERATURE = 1e-7;
+
 /**
  * Yields one token ID at a time, applying the same sampling logic as
  * `MambaModel.generate()` but yielding each step incrementally.
@@ -53,7 +56,7 @@ function sampleToken(
 
     // Temperature scaling
     const scaled = new Float32Array(n);
-    for (let i = 0; i < n; i++) scaled[i] = logits[i]! / Math.max(temperature, 1e-7);
+    for (let i = 0; i < n; i++) scaled[i] = logits[i]! / Math.max(temperature, MIN_TEMPERATURE);
 
     // Softmax (numerically stable)
     let maxL = -Infinity;

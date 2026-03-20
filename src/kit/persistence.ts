@@ -34,7 +34,7 @@ function openDB(): Promise<IDBDatabase> {
             }
         };
 
-        req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result);
+        req.onsuccess = () => resolve(req.result);
         req.onerror   = ()  => reject(new MambaKitError(
             'STORAGE_UNAVAILABLE',
             `Failed to open IndexedDB database "${DB_NAME}": ${req.error?.message ?? 'unknown error'}`,
@@ -79,6 +79,9 @@ export async function loadFromIndexedDB(key: string): Promise<ArrayBuffer | unde
     });
 }
 
+/** Milliseconds a download Blob URL is kept alive before being revoked. */
+const DOWNLOAD_URL_TTL_MS = 10_000;
+
 // ── Download helper ───────────────────────────────────────────────────────────
 
 export async function triggerDownload(filename: string, buffer: ArrayBuffer): Promise<void> {
@@ -94,8 +97,8 @@ export async function triggerDownload(filename: string, buffer: ArrayBuffer): Pr
     anchor.click();
     document.body.removeChild(anchor);
 
-    // Release the object URL after a short delay to allow the download to start
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    // Release the object URL after the TTL to allow the download to start
+    setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_TTL_MS);
 }
 
 // ── File System Access API helpers ────────────────────────────────────────────

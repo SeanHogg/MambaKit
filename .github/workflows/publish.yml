@@ -1,0 +1,60 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write   # required for npm provenance attestation
+
+jobs:
+  build-and-publish:
+    name: Build, Test & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify TypeScript declarations are present
+        run: |
+          for f in dist/kit/index.d.ts dist/kit/session.d.ts dist/kit/errors.d.ts dist/kit/presets.d.ts; do
+            if [ ! -f "$f" ]; then
+              echo "ERROR: $f not found — aborting publish"
+              exit 1
+            fi
+          done
+          echo "✓ All declaration files present"
+
+      - name: Test
+        run: npm test
+
+      - name: Stamp version from release tag
+        # GitHub release tags are like "v1.2.3"; strip the leading "v".
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          echo "Publishing version: $VERSION"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Publish to npm (with provenance)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
