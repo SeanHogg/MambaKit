@@ -23,6 +23,8 @@ export async function* tokenStream(
     const { temperature = 1.0, topK = 50, topP = 0.9 } = samplingOpts;
     const { vocabSize, eosId } = model.config;
 
+    // ids is declared const because the variable itself is never reassigned;
+    // ids.push() mutates the array contents, which const allows.
     const ids = [...promptIds];
 
     for (let step = 0; step < maxNewTokens; step++) {
