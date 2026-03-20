@@ -304,9 +304,11 @@ export class MambaSession {
 
         let {
             epochs       = 3,
+            wsla         = true,
+        } = options;
+        const {
             learningRate = 1e-4,
             seqLen       = 512,
-            wsla         = true,
             fullTrain    = false,
             onProgress,
         } = options;
