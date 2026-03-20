@@ -1,0 +1,85 @@
+{
+  "name": "mambakit",
+  "version": "1.0.0",
+  "description": "Opinionated facade over MambaCode.js — on-device AI in a single import",
+  "main": "dist/kit/index.js",
+  "module": "dist/kit/index.js",
+  "types": "dist/kit/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/kit/index.js",
+      "types": "./dist/kit/index.d.ts"
+    }
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "lint": "eslint src/ tests/",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["mamba", "ssm", "webgpu", "mambakit", "facade", "on-device-ai", "code-model", "typescript"],
+  "author": {
+    "name": "Sean Hogg",
+    "email": "seanhogg@gmail.com",
+    "url": "https://builderforce.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SeanHogg/MambaKit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SeanHogg/MambaKit/issues"
+  },
+  "homepage": "https://github.com/SeanHogg/MambaKit#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "mambacode.js": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@webgpu/types": "^0.1.49",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
+    "typescript": "^5.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest/presets/default-esm",
+    "extensionsToTreatAsEsm": [".ts"],
+    "setupFiles": ["./tests/jest.setup.ts"],
+    "transform": {
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "useESM": true,
+          "tsconfig": {
+            "module": "ES2022",
+            "moduleResolution": "node",
+            "strict": true,
+            "esModuleInterop": true,
+            "skipLibCheck": true,
+            "typeRoots": ["./node_modules/@types", "./node_modules/@webgpu", "./types"],
+            "types": ["jest"]
+          }
+        }
+      ]
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    }
+  }
+}
