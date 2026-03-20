@@ -8,12 +8,41 @@
 import {
     initWebGPU,
     BPETokenizer,
-    MambaModel,
+    HybridMambaModel,
     MambaTrainer,
-    type MambaModelConfig,
+    type HybridMambaModelConfig,
+    type LayerSpec,
+    type LayerType,
 } from 'mambacode.js';
 
 import { MambaKitError } from './errors.js';
+
+// ── Opinionated defaults ───────────────────────────────────────────────────────
+
+/** Default tokenizer: Qwen2.5-Coder BPE vocabulary (Apache 2.0). */
+const DEFAULT_VOCAB_URL  = 'https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct/resolve/main/vocab.json';
+const DEFAULT_MERGES_URL = 'https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct/resolve/main/merges.txt';
+
+/**
+ * Default checkpoint: MambaKit nano model trained on TinyStories.
+ *
+ * Trained with:
+ *   - Architecture : nano (dModel=128, numLayers=4)
+ *   - Tokenizer    : Qwen2.5-Coder BPE (151,936 tokens)
+ *   - Dataset      : roneneldan/TinyStories (~480 M tokens)
+ *   - Precision    : fp16 (~40 MB)
+ *
+ * To produce this checkpoint:
+ *   1. Open tools/pretrain.html after `npm run serve`
+ *   2. Click "Load TinyStories" to fetch the dataset
+ *   3. Train (nano, fullTrain, ~2 hrs on a consumer GPU with WebGPU)
+ *   4. Download the .bin
+ *   5. Upload to: https://huggingface.co/SeanHogg/mambakit-nano
+ *   6. Update this URL and uncomment DEFAULT_CHECKPOINT_URL below
+ *
+ * Uncomment once the checkpoint is hosted:
+ */
+// const DEFAULT_CHECKPOINT_URL = 'https://huggingface.co/SeanHogg/mambakit-nano/resolve/main/nano-tinystories-fp16.bin';
 import { resolveModelConfig } from './presets.js';
 import {
     saveToIndexedDB,
@@ -29,9 +58,9 @@ import { tokenStream } from './streaming.js';
 export interface MambaSessionOptions {
     /** URL to a .bin checkpoint file. Optional — model starts with random weights if omitted. */
     checkpointUrl?  : string;
-    /** URL to vocab.json (Qwen3.5-Coder compatible). Required unless vocabObject is supplied. */
+    /** URL to vocab.json. Defaults to the Qwen2.5-Coder vocabulary. */
     vocabUrl?       : string;
-    /** URL to merges.txt. Required unless mergesArray is supplied. */
+    /** URL to merges.txt. Defaults to the Qwen2.5-Coder merge rules. */
     mergesUrl?      : string;
     /** In-memory vocabulary object — alternative to vocabUrl. */
     vocabObject?    : Record<string, number>;
@@ -49,7 +78,21 @@ export interface MambaSessionOptions {
      */
     modelSize?      : 'nano' | 'small' | 'medium' | 'large' | 'custom';
     /** Fine-grained model configuration. Only used when modelSize is 'custom'. */
-    modelConfig?    : Partial<MambaModelConfig>;
+    modelConfig?    : Partial<HybridMambaModelConfig>;
+    /**
+     * SSM variant applied to all layers when no layerSchedule is given.
+     * Default: 'mamba1' (existing behaviour).
+     */
+    mambaVersion?   : LayerType extends 'attention' ? never : 'mamba1' | 'mamba2' | 'mamba3';
+    /**
+     * Per-layer type schedule. Length must equal the resolved numLayers.
+     * Overrides mambaVersion when provided.
+     *
+     * Preset strings:
+     *   'jamba' — every 4th layer is attention, rest mamba2
+     *   'zamba' — every 6th layer is attention, rest mamba3
+     */
+    layerSchedule?  : LayerSpec[] | 'jamba' | 'zamba';
     /** WebGPU power preference. Default: 'high-performance'. */
     powerPreference?: 'high-performance' | 'low-power';
     /** Number of times to retry a failed checkpoint fetch. Default: 2. */
@@ -102,7 +145,7 @@ export interface CreateProgressEvent {
 
 export interface SessionInternals {
     device    : GPUDevice;
-    model     : MambaModel;
+    model     : HybridMambaModel;
     trainer   : MambaTrainer;
     tokenizer : BPETokenizer;
 }
@@ -121,7 +164,7 @@ const RETRY_BACKOFF_FACTOR = 2;
 export class MambaSession {
     private _device    : GPUDevice;
     private _tokenizer : BPETokenizer;
-    private _model     : MambaModel;
+    private _model     : HybridMambaModel;
     private _trainer   : MambaTrainer;
     private _name      : string;
     private _destroyed = false;
@@ -129,7 +172,7 @@ export class MambaSession {
     private constructor(
         device    : GPUDevice,
         tokenizer : BPETokenizer,
-        model     : MambaModel,
+        model     : HybridMambaModel,
         trainer   : MambaTrainer,
         name      : string,
     ) {
@@ -177,15 +220,10 @@ export class MambaSession {
         try {
             if (options.vocabObject != null && options.mergesArray != null) {
                 tokenizer.loadFromObjects(options.vocabObject, options.mergesArray);
-            } else if (options.vocabUrl != null && options.mergesUrl != null) {
-                await tokenizer.load(options.vocabUrl, options.mergesUrl);
-            } else if (options.vocabUrl != null) {
-                // Support passing vocab only; merges can be empty
-                await tokenizer.load(options.vocabUrl, []);
             } else {
-                // No vocab provided — use a minimal fallback so the session
-                // is still usable for non-text workflows
-                tokenizer.loadFromObjects({}, []);
+                const vocabUrl  = options.vocabUrl  ?? DEFAULT_VOCAB_URL;
+                const mergesUrl = options.mergesUrl ?? DEFAULT_MERGES_URL;
+                await tokenizer.load(vocabUrl, mergesUrl);
             }
         } catch (err) {
             throw new MambaKitError(
@@ -200,7 +238,7 @@ export class MambaSession {
         emit('model', 0.0, 'Building model…');
         const vocabSize = tokenizer.vocabSize > 0 ? tokenizer.vocabSize : 1;
         const config    = resolveModelConfig(options, vocabSize);
-        const model     = new MambaModel(device, config);
+        const model     = new HybridMambaModel(device, config);
         const trainer   = new MambaTrainer(model, tokenizer);
         emit('model', 1.0, 'Model ready');
 

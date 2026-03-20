@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MambaKit Studio</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:  #6366f1;
+      --accent-h: #818cf8;
+      --green:   #22c55e;
+      --amber:   #f59e0b;
+      --red:     #ef4444;
+      --bg:      #0f1117;
+      --panel:   #1a1d27;
+      --border:  #2d3148;
+      --muted:   #94a3b8;
+      --dim:     #64748b;
+      --text:    #e2e8f0;
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
+    #app-header {
+      padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    }
+    #app-header h1 { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; }
+    #app-header .sub { font-size: 0.72rem; color: var(--dim); margin-left: 2px; }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #6b7280;
+      margin-left: auto; transition: background 0.3s;
+    }
+    #status-dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+    #status-dot.ready   { background: var(--green); }
+    #status-dot.error   { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+    /* ── Stepper ───────────────────────────────────────────────────────────── */
+    #stepper {
+      display: flex; align-items: center; gap: 0;
+      padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .step-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; background: none; border: none; cursor: pointer;
+      font-size: 0.82rem; color: var(--dim); border-bottom: 2px solid transparent;
+      transition: color 0.15s; white-space: nowrap;
+    }
+    .step-btn:hover { color: var(--text); }
+    .step-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+    .step-btn.done   { color: var(--green); }
+    .step-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%; background: var(--border);
+      color: var(--muted); font-size: 0.65rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
+    }
+    .step-btn.active .step-num { background: var(--accent); color: #fff; }
+    .step-btn.done   .step-num { background: var(--green);  color: #fff; }
+    .step-arrow { color: var(--border); font-size: 0.9rem; padding: 0 4px; }
+    .step-label { font-weight: 500; }
+
+    /* ── Main content ──────────────────────────────────────────────────────── */
+    #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    .step-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .step-panel.active { display: flex; }
+
+    /* ── Sub-tabs ──────────────────────────────────────────────────────────── */
+    .sub-tabs {
+      display: flex; gap: 4px; padding: 10px 16px;
+      background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .sub-tab {
+      padding: 5px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 500;
+      background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer;
+      transition: all 0.12s;
+    }
+    .sub-tab:hover { color: var(--text); background: #1e2235; }
+    .sub-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .sub-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .sub-panel.active { display: flex; }
+
+    /* ── Shared widgets ────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 300px; min-width: 300px; background: var(--panel); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto; padding: 16px; gap: 12px;
+    }
+    .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .two-col { flex: 1; display: flex; overflow: hidden; }
+
+    .section-label {
+      font-size: 0.68rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.07em;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 0.72rem; color: var(--muted); display: flex; justify-content: space-between; }
+    .field label span { color: var(--text); font-weight: 600; }
+    .field input[type=range] { width: 100%; accent-color: var(--accent); }
+    .field select, .field input[type=text], .field input[type=url], .field input[type=number] {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      padding: 6px 9px; color: var(--text); font-size: 0.82rem; width: 100%;
+    }
+    .field select:focus, .field input:focus { outline: none; border-color: var(--accent); }
+
+    .divider { height: 1px; background: var(--border); }
+
+    button.primary {
+      width: 100%; padding: 9px; background: var(--accent); color: #fff; border: none;
+      border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+    }
+    button.primary:hover:not(:disabled) { background: var(--accent-h); }
+    button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    button.secondary {
+      flex: 1; padding: 7px; border: 1px solid var(--border); border-radius: 5px;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer; background: #1e293b; color: var(--muted);
+    }
+    button.secondary:hover:not(:disabled) { color: var(--text); border-color: #475569; }
+    button.secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .progress-wrap { display: none; }
+    .progress-wrap.visible { display: block; }
+    .progress-bg { height: 3px; background: var(--border); border-radius: 2px; }
+    .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0; transition: width 0.2s; }
+    .progress-label { font-size: 0.7rem; color: var(--dim); margin-top: 3px; }
+
+    .error-box {
+      background: #2d1515; border: 1px solid #7f1d1d; color: #fca5a5;
+      border-radius: 5px; padding: 7px 9px; font-size: 0.78rem; display: none;
+    }
+    .error-box.visible { display: block; }
+
+    .warn-box {
+      background: #1c1a07; border: 1px solid #854d0e; color: #fbbf24;
+      border-radius: 5px; padding: 7px 9px; font-size: 0.78rem; display: none;
+    }
+    .warn-box.visible { display: block; }
+
+    .info-box {
+      background: #0f1a30; border: 1px solid #1e3a5f; color: #93c5fd;
+      border-radius: 6px; padding: 10px 12px; font-size: 0.78rem; line-height: 1.6;
+    }
+    .info-box strong { color: #bfdbfe; }
+    .info-box code { background: #1e3a5f; padding: 1px 5px; border-radius: 3px; font-size: 0.74rem; }
+
+    .continue-row {
+      padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .continue-row .hint { font-size: 0.76rem; color: var(--dim); }
+    .continue-row button { margin-left: auto; }
+
+    .spinner {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Step 1: train sub-panel ───────────────────────────────────────────── */
+    #train-corpus-area {
+      flex: 1; background: var(--bg); border: none; padding: 14px 18px;
+      color: var(--text); font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.83rem; line-height: 1.7; resize: none; outline: none; overflow-y: auto;
+    }
+    #train-chart-wrap { border-top: 1px solid var(--border); padding: 10px 16px; background: var(--panel); height: 150px; flex-shrink: 0; }
+    #train-chart-wrap h3 { font-size: 0.65rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+    #train-loss-chart { width: 100%; height: 90px; }
+    #train-chart-stats { font-size: 0.7rem; color: var(--dim); display: flex; gap: 16px; margin-top: 3px; }
+    #train-chart-stats span { color: var(--text); font-weight: 600; }
+    #train-corpus-header {
+      padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    #train-dataset-progress {
+      display: none; padding: 6px 14px; background: #12181f; border-bottom: 1px solid var(--border);
+      font-size: 0.75rem; color: var(--muted); align-items: center; gap: 8px;
+    }
+    #train-dataset-progress.visible { display: flex; }
+
+    /* ── Step 1: convert sub-panel ─────────────────────────────────────────── */
+    #convert-body { flex: 1; overflow-y: auto; padding: 28px; max-width: 680px; margin: 0 auto; width: 100%; }
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: 8px; padding: 36px 20px;
+      text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin: 16px 0;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: #1a1030; }
+    .drop-zone p { color: var(--muted); font-size: 0.83rem; margin-top: 6px; }
+    .drop-zone strong { color: var(--text); font-size: 0.95rem; }
+    #convert-model-info {
+      display: none; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; line-height: 1.8;
+    }
+    #convert-model-info.visible { display: block; }
+    #convert-result {
+      display: none; background: #0a1f0a; border: 1px solid #14532d;
+      border-radius: 8px; padding: 16px; margin-top: 14px;
+    }
+    #convert-result.visible { display: block; }
+    #convert-result h3 { color: #4ade80; font-size: 0.82rem; margin-bottom: 8px; }
+    #convert-result p { font-size: 0.8rem; color: #86efac; line-height: 1.5; }
+
+    /* ── Step 1: load-url sub-panel ────────────────────────────────────────── */
+    #load-url-body { flex: 1; overflow-y: auto; padding: 40px 28px; max-width: 560px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Step 1: fresh sub-panel ───────────────────────────────────────────── */
+    #fresh-body { flex: 1; overflow-y: auto; padding: 40px 28px; max-width: 560px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Step 2: KB ─────────────────────────────────────────────────────────── */
+    #kb-left {
+      width: 340px; min-width: 340px; background: var(--panel); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    #kb-left-scroll { flex: 1; overflow-y: auto; }
+    #kb-ingest-section { padding: 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+    #kb-form-section { padding: 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+    #kb-doc-list { padding: 14px; }
+    #kb-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #kb-query-section { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+    #kb-answer-wrap { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow-y: auto; }
+    #kb-answer-text { font-size: 0.88rem; line-height: 1.7; white-space: pre-wrap; word-break: break-word; color: var(--text); min-height: 48px; }
+    #kb-answer-text.placeholder { color: var(--dim); }
+    #kb-answer-text.loading { color: #86efac; }
+    #kb-query-input-wrap { display: flex; gap: 8px; }
+    #kb-query-input {
+      flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; color: var(--text); font-size: 0.88rem; font-family: inherit;
+    }
+    #kb-query-input:focus { outline: none; border-color: var(--accent); }
+    #kb-stats-bar {
+      padding: 8px 20px; background: var(--panel); border-top: 1px solid var(--border);
+      display: flex; gap: 20px; font-size: 0.74rem; color: var(--muted); flex-shrink: 0;
+    }
+    .stat-val { font-weight: 700; color: var(--green); }
+    .doc-card { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 9px 11px; margin-bottom: 7px; font-size: 0.78rem; }
+    .doc-id { font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .doc-meta { color: var(--muted); font-size: 0.72rem; }
+    .perp-change { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+    .perp-before { color: var(--amber); } .perp-after { color: var(--green); }
+    .perp-arrow { color: var(--dim); }
+    .improved { color: var(--green); font-size: 0.7rem; } .worsened { color: #f87171; font-size: 0.7rem; }
+    .kb-textarea {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 7px 10px; color: var(--text); font-size: 0.82rem; font-family: inherit;
+      resize: vertical; min-height: 80px;
+    }
+    .kb-textarea:focus { outline: none; border-color: var(--accent); }
+    .kb-input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 0.82rem;
+    }
+    .kb-input:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Step 3: Chat ──────────────────────────────────────────────────────── */
+    #chat-messages { flex: 1; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .msg { display: flex; gap: 10px; max-width: 720px; }
+    .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+    .avatar {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700;
+    }
+    .msg.user .avatar { background: var(--accent); color: #fff; }
+    .msg.assistant .avatar { background: #1e293b; color: var(--muted); border: 1px solid var(--border); }
+    .bubble {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 9px 13px; font-size: 0.88rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+    }
+    .msg.user .bubble { background: #312e8c; border-color: #4338ca; }
+    .typing-indicator span {
+      display: inline-block; width: 5px; height: 5px; background: var(--dim);
+      border-radius: 50%; margin: 0 1px; animation: bounce 1.2s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)} }
+    #chat-input-bar {
+      padding: 12px 18px; background: var(--panel); border-top: 1px solid var(--border);
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    #chat-user-input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 13px; color: var(--text); font-size: 0.88rem; font-family: inherit;
+      resize: none; height: 42px; line-height: 1.4;
+    }
+    #chat-user-input:focus { outline: none; border-color: var(--accent); }
+    #chat-send-btn {
+      padding: 0 16px; background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+    }
+    #chat-send-btn:hover:not(:disabled) { background: var(--accent-h); }
+    #chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #chat-clear-btn {
+      padding: 0 12px; background: transparent; color: var(--dim);
+      border: 1px solid var(--border); border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+    }
+    #chat-clear-btn:hover { color: var(--text); }
+    #chat-system-row {
+      padding: 8px 18px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    #chat-system-row label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+    #chat-system-prompt {
+      flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      padding: 5px 9px; color: var(--text); font-size: 0.8rem;
+    }
+    #chat-system-prompt:focus { outline: none; border-color: var(--accent); }
+    #chat-apply-btn {
+      padding: 5px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 5px; color: var(--muted); font-size: 0.78rem; cursor: pointer;
+    }
+    #chat-apply-btn:hover { color: var(--text); }
+
+    /* ── Step 3: Code ──────────────────────────────────────────────────────── */
+    #code-sidebar {
+      width: 240px; min-width: 240px; background: var(--panel); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto; padding: 14px; gap: 12px;
+    }
+    #code-editor-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #code-editor-header {
+      padding: 9px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .code-tab { padding: 3px 9px; border-radius: 4px; font-size: 0.76rem; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+    #code-complete-btn {
+      padding: 5px 13px; background: var(--accent); color: #fff; border: none;
+      border-radius: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; margin-left: auto;
+    }
+    #code-complete-btn:hover:not(:disabled) { background: var(--accent-h); }
+    #code-complete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #code-complete-line-btn {
+      padding: 5px 13px; background: #21262d; color: var(--text); border: 1px solid var(--border);
+      border-radius: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; margin-left: 4px;
+    }
+    #code-complete-line-btn:hover:not(:disabled) { background: #30363d; }
+    #code-complete-line-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #code-input-area {
+      flex: 1; background: var(--bg); border: none; padding: 16px 18px;
+      color: var(--text); font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 0.88rem; line-height: 1.7; resize: none; outline: none; overflow-y: auto;
+    }
+    #code-output-pane { border-top: 1px solid var(--border); background: var(--panel); padding: 10px 18px; max-height: 180px; overflow-y: auto; flex-shrink: 0; }
+    #code-output-pane h3 { font-size: 0.65rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
+    #code-output-text { font-family: 'Fira Code', monospace; font-size: 0.83rem; color: #3fb950; white-space: pre-wrap; word-break: break-word; min-height: 32px; }
+    #code-output-text.streaming { color: #79c0ff; }
+    #code-output-text.placeholder { color: var(--dim); }
+    #code-output-meta { margin-top: 4px; font-size: 0.68rem; color: var(--muted); }
+    .snippet-btn {
+      display: block; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 5px; padding: 6px 9px; color: var(--muted); font-size: 0.74rem;
+      font-family: 'Fira Code', monospace; cursor: pointer; margin-bottom: 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .snippet-btn:hover { border-color: var(--accent); color: var(--text); }
+    .code-slider { display: flex; flex-direction: column; gap: 3px; }
+    .code-slider label { font-size: 0.7rem; color: var(--muted); display: flex; justify-content: space-between; }
+    .code-slider label span { color: var(--text); font-weight: 600; }
+    .code-slider input[type=range] { width: 100%; accent-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<header id="app-header">
+  <h1>MambaKit Studio <span class="sub">on-device AI</span></h1>
+  <div id="status-dot" title="Model status"></div>
+</header>
+
+<!-- ── Stepper ───────────────────────────────────────────────────────────── -->
+<nav id="stepper">
+  <button class="step-btn active" id="nav-1" onclick="goTo(1)">
+    <span class="step-num">1</span><span class="step-label">Get Weights</span>
+  </button>
+  <span class="step-arrow">›</span>
+  <button class="step-btn" id="nav-2" onclick="goTo(2)" disabled>
+    <span class="step-num">2</span><span class="step-label">Knowledge Base</span>
+  </button>
+  <span class="step-arrow">›</span>
+  <button class="step-btn" id="nav-3" onclick="goTo(3)" disabled>
+    <span class="step-num">3</span><span class="step-label">Chat &amp; Code</span>
+  </button>
+</nav>
+
+<!-- ── Content ───────────────────────────────────────────────────────────── -->
+<div id="content">
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- STEP 1: Get Weights                                                    -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="step-panel active" id="step-1">
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="setSubTab('s1','train')">Train on Dataset</button>
+      <button class="sub-tab" onclick="setSubTab('s1','convert')">Convert Checkpoint</button>
+      <button class="sub-tab" onclick="setSubTab('s1','load-url')">Load from URL</button>
+      <button class="sub-tab" onclick="setSubTab('s1','fresh')">Fresh Start</button>
+    </div>
+
+    <!-- ── Sub: Train ──────────────────────────────────────────────────── -->
+    <div class="sub-panel active" id="s1-train">
+      <div class="two-col">
+        <aside class="sidebar">
+          <div class="section-label">Model</div>
+          <div class="field">
+            <label>Size</label>
+            <select id="train-model-size">
+              <option value="nano">nano — ~6 M params (fastest)</option>
+              <option value="small">small — ~20 M params</option>
+              <option value="medium">medium — ~50 M params</option>
+              <option value="large">large — ~120 M params</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Resume checkpoint URL <span style="font-size:0.65rem;color:var(--dim);">(optional)</span></label>
+            <input id="train-ckpt-url" type="url" placeholder="https://…/base.bin" />
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Training</div>
+          <div class="field">
+            <label>Epochs <span id="train-epochs-val">5</span></label>
+            <input id="train-epochs" type="range" min="1" max="50" step="1" value="5" />
+          </div>
+          <div class="field">
+            <label>Seq length <span id="train-seqlen-val">128</span></label>
+            <input id="train-seqlen" type="range" min="32" max="512" step="32" value="128" />
+          </div>
+          <div class="field">
+            <label>Learning rate <span id="train-lr-val">1e-3</span></label>
+            <input id="train-lr" type="range" min="-5" max="-2" step="0.25" value="-3" />
+          </div>
+          <div class="error-box" id="train-error"></div>
+          <button class="primary" id="train-start-btn" disabled>Start Training</button>
+          <button id="train-stop-btn" style="display:none;width:100%;padding:8px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:0.875rem;font-weight:600;cursor:pointer;">Stop</button>
+          <div class="divider"></div>
+          <div class="section-label">Save</div>
+          <div style="display:flex;gap:6px;">
+            <button class="secondary" id="train-save-idb" disabled>Save to browser</button>
+            <button class="secondary" id="train-save-dl" disabled>Download .bin</button>
+          </div>
+          <div id="train-save-status" style="font-size:0.7rem;color:var(--dim);"></div>
+        </aside>
+        <div class="main-area">
+          <div id="train-corpus-header">
+            <span class="section-label">Training Corpus</span>
+            <div id="train-corpus-meta" style="font-size:0.72rem;color:var(--dim);margin-left:8px;">0 chars</div>
+            <div style="display:flex;gap:6px;margin-left:auto;align-items:center;">
+              <select id="train-dataset-select" style="background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-size:0.76rem;">
+                <option value="smollm-python">SmolLM python-edu (coding)</option>
+                <option value="codesearchnet-python">CodeSearchNet Python</option>
+                <option value="codesearchnet-javascript">CodeSearchNet JavaScript</option>
+                <option value="codesearchnet-go">CodeSearchNet Go</option>
+                <option value="tinystories">TinyStories (English)</option>
+              </select>
+              <button id="train-load-dataset-btn" style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:0.76rem;font-weight:600;cursor:pointer;">Load ↓</button>
+              <label style="padding:4px 10px;background:var(--panel);border:1px solid var(--border);border-radius:5px;font-size:0.76rem;color:var(--muted);cursor:pointer;">
+                File <input id="train-file-input" type="file" accept=".txt,.md,.js,.ts,.py,.go" style="display:none;" />
+              </label>
+            </div>
+          </div>
+          <div id="train-dataset-progress">
+            <span id="train-dataset-progress-text">Loading…</span>
+            <button id="train-dataset-stop-btn" style="padding:1px 8px;background:transparent;border:1px solid #475569;border-radius:3px;color:var(--muted);font-size:0.72rem;cursor:pointer;">Stop</button>
+          </div>
+          <textarea id="train-corpus-area" placeholder="Select a dataset above and click Load ↓ to stream training data.
+
+  SmolLM python-edu  — Python educational text, best for coding
+  CodeSearchNet      — Documented functions (Python / JS / Go)
+  TinyStories        — English stories, great for general language
+
+After training:
+  1. Click 'Save to browser' to store weights in IndexedDB
+  2. Continue to Knowledge Base → fine-tune on your content
+  3. Continue to Chat & Code → use the trained model"></textarea>
+          <div id="train-chart-wrap">
+            <h3>Training Loss</h3>
+            <canvas id="train-loss-chart"></canvas>
+            <div id="train-chart-stats">
+              Step: <span id="train-stat-step">—</span>
+              &nbsp;Loss: <span id="train-stat-loss">—</span>
+              &nbsp;PPL: <span id="train-stat-ppl">—</span>
+              &nbsp;Time: <span id="train-stat-time">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="continue-row" id="train-continue-row" style="display:none;">
+        <span class="hint">Model trained and ready.</span>
+        <button class="primary" style="width:auto;padding:8px 20px;" onclick="goTo(2)">Continue to Knowledge Base →</button>
+      </div>
+    </div>
+
+    <!-- ── Sub: Convert ────────────────────────────────────────────────── -->
+    <div class="sub-panel" id="s1-convert">
+      <div id="convert-body">
+        <div class="info-box">
+          <strong>state-spaces/mamba</strong> models use the same Mamba SSM architecture as mambacode.js.
+          This converter reads their <code>.safetensors</code> weights and writes them in the MBJS format MambaKit can load.<br><br>
+          Download <code>model.safetensors</code> from
+          <a href="https://huggingface.co/state-spaces/mamba-130m" target="_blank" style="color:#818cf8;">huggingface.co/state-spaces/mamba-130m</a>
+          (130m recommended — 370m/790m also work, larger = better quality, slower). Then drop it below.
+        </div>
+
+        <div class="drop-zone" id="convert-drop-zone">
+          <strong>Drop model.safetensors here</strong>
+          <p>or click to browse</p>
+          <input type="file" id="convert-file-input" accept=".safetensors" style="display:none;" />
+        </div>
+
+        <div id="convert-model-info"></div>
+
+        <button class="primary" id="convert-btn" disabled style="margin-top:12px;">Convert to MBJS</button>
+
+        <div class="progress-wrap" id="convert-progress" style="margin-top:10px;">
+          <div class="progress-bg"><div class="progress-bar" id="convert-bar"></div></div>
+          <div class="progress-label" id="convert-label">Converting…</div>
+        </div>
+        <div class="error-box" id="convert-error" style="margin-top:8px;"></div>
+
+        <div id="convert-result">
+          <h3>✓ Conversion complete</h3>
+          <p id="convert-result-text"></p>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="secondary" id="convert-save-idb" style="background:#1e293b;">Save to browser &amp; Load</button>
+            <button class="secondary" id="convert-save-dl" style="background:#1e293b;">Download .bin</button>
+          </div>
+        </div>
+      </div>
+      <div class="continue-row" id="convert-continue-row" style="display:none;">
+        <span class="hint">Converted weights loaded into session.</span>
+        <button class="primary" style="width:auto;padding:8px 20px;" onclick="goTo(2)">Continue to Knowledge Base →</button>
+      </div>
+    </div>
+
+    <!-- ── Sub: Load URL ───────────────────────────────────────────────── -->
+    <div class="sub-panel" id="s1-load-url">
+      <div id="load-url-body">
+        <div class="info-box">
+          Load a <code>.bin</code> checkpoint hosted on any URL — HuggingFace, your own server, or a local dev server.
+          The file must be in MBJS format (produced by <em>Train</em> or <em>Convert</em>).
+        </div>
+        <div class="field">
+          <label>Checkpoint URL</label>
+          <input id="loadurl-input" type="url" placeholder="https://huggingface.co/…/model.bin" />
+        </div>
+        <div class="field">
+          <label>Model size (must match the checkpoint)</label>
+          <select id="loadurl-size">
+            <option value="nano">nano — dModel=128, 4 layers</option>
+            <option value="small">small — dModel=256, 6 layers</option>
+            <option value="medium">medium — dModel=512, 8 layers</option>
+            <option value="large">large — dModel=768, 12 layers</option>
+          </select>
+        </div>
+        <div class="progress-wrap" id="loadurl-progress">
+          <div class="progress-bg"><div class="progress-bar" id="loadurl-bar"></div></div>
+          <div class="progress-label" id="loadurl-label">Loading…</div>
+        </div>
+        <div class="error-box" id="loadurl-error"></div>
+        <button class="primary" id="loadurl-btn">Load from URL</button>
+        <div class="continue-row" id="loadurl-continue-row" style="display:none;margin:0;padding:0;border:none;background:none;">
+          <span class="hint">Checkpoint loaded.</span>
+          <button class="primary" style="width:auto;padding:8px 20px;" onclick="goTo(2)">Continue →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Sub: Fresh Start ────────────────────────────────────────────── -->
+    <div class="sub-panel" id="s1-fresh">
+      <div id="fresh-body">
+        <div class="info-box">
+          Start with <strong>random weights</strong> — no checkpoint required.<br><br>
+          Random weights are only useful for <strong>Knowledge Base</strong>: the WSLA fine-tuning algorithm
+          can specialise the model on your documents even from random initialisation. Perplexity will drop
+          significantly after 3 epochs on just a few paragraphs.<br><br>
+          For <strong>Chatbot</strong> or <strong>Code Completion</strong>, train a base model first using
+          the <em>Train on Dataset</em> tab — it takes ~2 hrs on a consumer GPU for the nano preset.
+        </div>
+        <div class="field">
+          <label>Model size</label>
+          <select id="fresh-size">
+            <option value="nano">nano — ~6 M params (recommended for quick demo)</option>
+            <option value="small">small — ~20 M params</option>
+            <option value="medium">medium — ~50 M params</option>
+            <option value="large">large — ~120 M params</option>
+          </select>
+        </div>
+        <div class="progress-wrap" id="fresh-progress">
+          <div class="progress-bg"><div class="progress-bar" id="fresh-bar"></div></div>
+          <div class="progress-label" id="fresh-label">Initialising…</div>
+        </div>
+        <div class="error-box" id="fresh-error"></div>
+        <button class="primary" id="fresh-btn">Initialise with Random Weights</button>
+        <div id="fresh-continue-row" style="display:none;">
+          <button class="primary" onclick="goTo(2)">Continue to Knowledge Base →</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- /step-1 -->
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- STEP 2: Knowledge Base                                                 -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="step-panel" id="step-2">
+    <div class="two-col" style="flex:1;overflow:hidden;">
+      <div id="kb-left">
+        <div id="kb-left-scroll">
+          <div id="kb-ingest-section">
+            <div class="section-label">Ingest</div>
+            <button class="primary" id="kb-sample-btn">Ingest Sample Documents</button>
+            <div style="font-size:0.72rem;color:var(--dim);">3 built-in MambaKit docs — no setup needed</div>
+            <div style="text-align:center;font-size:0.72rem;color:#334155;margin:4px 0;">— or add your own below —</div>
+          </div>
+          <div id="kb-form-section">
+            <div class="section-label" style="margin-bottom:4px;">Custom Document</div>
+            <input id="kb-doc-id" class="kb-input" placeholder="Document ID (e.g. readme)" />
+            <textarea id="kb-doc-content" class="kb-textarea" placeholder="Paste text to fine-tune into the model…"></textarea>
+            <button class="primary" id="kb-ingest-btn" style="margin-top:4px;">Ingest</button>
+          </div>
+          <div class="progress-wrap" id="kb-progress" style="padding:10px 14px;">
+            <div class="progress-bg"><div class="progress-bar" id="kb-bar"></div></div>
+            <div class="progress-label" id="kb-label">Ingesting…</div>
+          </div>
+          <div id="kb-doc-list">
+            <div class="section-label" style="margin-bottom:8px;">Ingested <span id="kb-doc-count" style="color:var(--green);">0</span></div>
+            <div id="kb-cards"></div>
+          </div>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;">
+          <button class="secondary" id="kb-save-idb" disabled>Save to browser</button>
+          <button class="secondary" id="kb-save-dl" disabled>Download .bin</button>
+        </div>
+        <div id="kb-save-status" style="padding:4px 14px 8px;font-size:0.7rem;color:var(--dim);"></div>
+      </div>
+      <div id="kb-right">
+        <div id="kb-query-section">
+          <div class="section-label">Query</div>
+          <div id="kb-query-input-wrap">
+            <input id="kb-query-input" class="kb-input" placeholder="Ask a question about your ingested documents… (Enter to send)" />
+            <button class="primary" id="kb-query-btn" style="width:auto;padding:9px 18px;white-space:nowrap;">Ask</button>
+          </div>
+          <div id="kb-answer-wrap">
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px;">Answer</div>
+            <div id="kb-answer-text" class="placeholder">Ingest documents on the left, then ask a question.</div>
+          </div>
+        </div>
+        <div id="kb-stats-bar">
+          <div>Docs: <span class="stat-val" id="kb-stat-docs">0</span></div>
+          <div>Total time: <span class="stat-val" id="kb-stat-time">—</span></div>
+          <div>Last perplexity: <span class="stat-val" id="kb-stat-perp">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="continue-row">
+      <span class="hint">Weights adapted. Ready to chat or complete code.</span>
+      <button class="primary" style="width:auto;padding:8px 20px;" onclick="goTo(3)">Continue to Chat &amp; Code →</button>
+    </div>
+  </div><!-- /step-2 -->
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- STEP 3: Chat & Code                                                    -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="step-panel" id="step-3">
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="setSubTab('s3','chat')">Chat</button>
+      <button class="sub-tab" onclick="setSubTab('s3','code')">Code Completion</button>
+    </div>
+
+    <!-- ── Sub: Chat ───────────────────────────────────────────────────── -->
+    <div class="sub-panel active" id="s3-chat" style="flex-direction:column;">
+      <div id="chat-system-row">
+        <label>System prompt</label>
+        <input id="chat-system-prompt" type="text" value="You are a helpful assistant." />
+        <button id="chat-apply-btn" onclick="applyChatbot()">Apply</button>
+      </div>
+      <div id="chat-messages">
+        <div class="msg assistant">
+          <div class="avatar">M</div>
+          <div class="bubble">Continue from Step 1 &amp; 2 to start chatting.</div>
+        </div>
+      </div>
+      <div id="chat-input-bar">
+        <textarea id="chat-user-input" placeholder="Type a message… (Enter to send)" disabled></textarea>
+        <button id="chat-clear-btn">Clear</button>
+        <button id="chat-send-btn" disabled>Send</button>
+      </div>
+    </div>
+
+    <!-- ── Sub: Code ───────────────────────────────────────────────────── -->
+    <div class="sub-panel" id="s3-code">
+      <div class="two-col">
+        <div id="code-sidebar">
+          <div class="section-label">Generation</div>
+          <div class="code-slider">
+            <label>Max tokens <span id="code-max-val">128</span></label>
+            <input id="code-max-tokens" type="range" min="16" max="512" step="16" value="128" />
+          </div>
+          <div class="code-slider">
+            <label>Temperature <span id="code-temp-val">0.40</span></label>
+            <input id="code-temperature" type="range" min="0" max="2" step="0.05" value="0.4" />
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Starter Snippets</div>
+          <button class="snippet-btn" data-code="function fibonacci(n: number): number {">function fibonacci(n)</button>
+          <button class="snippet-btn" data-code="async function fetchUser(id: string) {">async fetchUser(id)</button>
+          <button class="snippet-btn" data-code="class BinaryTree<T> {">class BinaryTree&lt;T&gt;</button>
+          <button class="snippet-btn" data-code="const debounce = (fn: Function, ms: number) =>">const debounce(fn, ms)</button>
+          <button class="snippet-btn" data-code="def quicksort(arr):">def quicksort(arr)</button>
+        </div>
+        <div id="code-editor-pane">
+          <div id="code-editor-header">
+            <div class="code-tab">untitled.ts</div>
+            <button id="code-complete-line-btn" disabled>Complete Line</button>
+            <button id="code-complete-btn" disabled>Complete →</button>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+            <textarea id="code-input-area" spellcheck="false" placeholder="Type code here, then press Complete →"></textarea>
+            <div id="code-output-pane">
+              <h3>Completion</h3>
+              <div id="code-output-text" class="placeholder">Load a model and press Complete.</div>
+              <div id="code-output-meta"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /step-3 -->
+
+</div><!-- /content -->
+
+<script type="importmap">
+{
+  "imports": {
+    "mambacode.js": "/node_modules/mambacode.js/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+import { MambaSession }       from '/dist/kit/index.js';
+import { MambaKnowledgeBase } from '/dist/examples/knowledge-base.js';
+import { MambaChatbot }       from '/dist/examples/chatbot.js';
+import { MambaCodeCompleter } from '/dist/examples/code-completion.js';
+
+// ── Shared state ───────────────────────────────────────────────────────────
+let session   = null;
+let kb        = null;
+let chatbot   = null;
+let completer = null;
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+window.goTo = function(step) {
+  if (step > 1 && !session) return;
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`step-${step}`).classList.add('active');
+  document.querySelectorAll('.step-btn').forEach((b, i) => {
+    b.classList.toggle('active', i + 1 === step);
+  });
+  if (step === 2 && !kb && session) {
+    kb = new MambaKnowledgeBase(session);
+  }
+  if (step === 3 && !chatbot && session) {
+    chatbot = new MambaChatbot(session, document.getElementById('chat-system-prompt').value);
+    completer = new MambaCodeCompleter(session);
+    document.getElementById('chat-user-input').disabled = false;
+    document.getElementById('chat-send-btn').disabled = false;
+    document.getElementById('code-complete-btn').disabled = false;
+    document.getElementById('code-complete-line-btn').disabled = false;
+    const msg = document.getElementById('chat-messages');
+    msg.innerHTML = '';
+    appendMsg('assistant', 'Model ready. What would you like to know?');
+  }
+};
+
+window.setSubTab = function(group, tab) {
+  const prefix = group === 's1' ? 's1-' : 's3-';
+  document.querySelectorAll(`#step-${group === 's1' ? 1 : 3} .sub-tab`).forEach((b, i) => {
+    const tabs = group === 's1' ? ['train','convert','load-url','fresh'] : ['chat','code'];
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll(`#step-${group === 's1' ? 1 : 3} .sub-panel`).forEach(p => p.classList.remove('active'));
+  document.getElementById(`${prefix}${tab}`)?.classList.add('active');
+};
+
+function unlockSteps() {
+  document.getElementById('nav-2').disabled = false;
+  document.getElementById('nav-3').disabled = false;
+  document.getElementById('nav-1').classList.add('done');
+  document.getElementById('status-dot').className = 'ready';
+}
+
+const STAGE_OFFSETS = { gpu: 0, tokenizer: 25, model: 50, weights: 75 };
+function stageProgress(stage, progress) { return STAGE_OFFSETS[stage] + progress * 25; }
+
+// ── Step 1 shared: create session ──────────────────────────────────────────
+async function createSession(opts, progressBar, progressLabel) {
+  return MambaSession.create(opts, {
+    onProgress({ stage, progress, message }) {
+      if (progressBar) progressBar.style.width = `${stageProgress(stage, progress)}%`;
+      if (progressLabel) progressLabel.textContent = message;
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 1 — TRAIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Slider labels
+const trainEpochs = document.getElementById('train-epochs');
+const trainSeqLen = document.getElementById('train-seqlen');
+const trainLr     = document.getElementById('train-lr');
+trainEpochs.addEventListener('input', () => document.getElementById('train-epochs-val').textContent = trainEpochs.value);
+trainSeqLen.addEventListener('input', () => document.getElementById('train-seqlen-val').textContent = trainSeqLen.value);
+trainLr.addEventListener('input', () => document.getElementById('train-lr-val').textContent = `1e${trainLr.value}`);
+
+// Corpus meta
+const corpusEl    = document.getElementById('train-corpus-area');
+const corpusMeta  = document.getElementById('train-corpus-meta');
+const startBtn    = document.getElementById('train-start-btn');
+function updateCorpusMeta() {
+  const c = corpusEl.value.length;
+  corpusMeta.textContent = `${c.toLocaleString()} chars · ~${Math.round(c/4).toLocaleString()} tokens`;
+  startBtn.disabled = c < 500;
+}
+corpusEl.addEventListener('input', updateCorpusMeta);
+
+// File load
+document.getElementById('train-file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => { corpusEl.value = ev.target.result; updateCorpusMeta(); };
+  r.readAsText(file);
+});
+
+// Dataset definitions
+const DATASETS = {
+  'smollm-python'         : { api: { dataset: 'HuggingFaceTB/smollm-corpus', config: 'python-edu', split: 'train', field: 'text' }, targetChars: 2_000_000 },
+  'codesearchnet-python'  : { api: { dataset: 'code-search-net/code_search_net', config: 'python',     split: 'train', field: 'whole_func_string' }, targetChars: 2_000_000 },
+  'codesearchnet-javascript': { api: { dataset: 'code-search-net/code_search_net', config: 'javascript', split: 'train', field: 'whole_func_string' }, targetChars: 2_000_000 },
+  'codesearchnet-go'      : { api: { dataset: 'code-search-net/code_search_net', config: 'go',          split: 'train', field: 'whole_func_string' }, targetChars: 2_000_000 },
+  'tinystories'           : { directUrl: 'https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStories-valid.txt' },
+};
+
+let dsStopFlag = false;
+const dsProgressEl  = document.getElementById('train-dataset-progress');
+const dsProgressTxt = document.getElementById('train-dataset-progress-text');
+document.getElementById('train-dataset-stop-btn').addEventListener('click', () => { dsStopFlag = true; });
+
+document.getElementById('train-load-dataset-btn').addEventListener('click', async () => {
+  const key = document.getElementById('train-dataset-select').value;
+  const ds  = DATASETS[key];
+  if (!ds) return;
+  const btn = document.getElementById('train-load-dataset-btn');
+  btn.disabled = true; btn.textContent = '…';
+  dsStopFlag = false;
+  dsProgressEl.classList.add('visible');
+  dsProgressTxt.textContent = 'Starting…';
+  try {
+    if (ds.directUrl) {
+      const res = await fetch(ds.directUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      corpusEl.value = await res.text();
+      dsProgressTxt.textContent = '✓ Loaded';
+    } else {
+      const { dataset, config, split, field } = ds.api;
+      let offset = 0, accumulated = '';
+      while (accumulated.length < ds.targetChars) {
+        if (dsStopFlag) break;
+        const url = `https://datasets-server.huggingface.co/rows?dataset=${encodeURIComponent(dataset)}&config=${encodeURIComponent(config)}&split=${encodeURIComponent(split)}&offset=${offset}&length=100`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`API HTTP ${res.status}`);
+        const json = await res.json();
+        const rows = json.rows ?? [];
+        if (!rows.length) break;
+        for (const { row } of rows) { const t = row[field] ?? ''; if (t.length > 10) accumulated += t + '\n\n'; }
+        offset += rows.length;
+        const pct = Math.min(100, Math.round(accumulated.length / ds.targetChars * 100));
+        dsProgressTxt.textContent = `${offset.toLocaleString()} rows · ${(accumulated.length/1000).toFixed(0)} KB · ${pct}%`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+      corpusEl.value = accumulated;
+      dsProgressTxt.textContent = `✓ ${(accumulated.length/1000).toFixed(0)} KB loaded`;
+    }
+    updateCorpusMeta();
+    btn.textContent = '✓';
+  } catch (err) {
+    dsProgressTxt.textContent = `Error: ${err.message}`;
+    btn.textContent = 'Load ↓';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Loss chart
+const trainCanvas = document.getElementById('train-loss-chart');
+const trainCtx    = trainCanvas.getContext('2d');
+const trainLosses = [];
+
+function resizeTrainChart() {
+  trainCanvas.width  = trainCanvas.offsetWidth  * devicePixelRatio;
+  trainCanvas.height = trainCanvas.offsetHeight * devicePixelRatio;
+  trainCtx.scale(devicePixelRatio, devicePixelRatio);
+  drawTrainChart();
+}
+function drawTrainChart() {
+  const w = trainCanvas.offsetWidth, h = trainCanvas.offsetHeight;
+  trainCtx.clearRect(0, 0, w, h);
+  if (trainLosses.length < 2) return;
+  const minL = Math.min(...trainLosses), maxL = Math.max(...trainLosses), range = maxL - minL || 1;
+  const p = { t:4, b:4, l:4, r:4 };
+  trainCtx.strokeStyle = '#6366f1'; trainCtx.lineWidth = 1.5; trainCtx.beginPath();
+  trainLosses.forEach((l, i) => {
+    const x = p.l + (i/(trainLosses.length-1)) * (w-p.l-p.r);
+    const y = p.t + (1-(l-minL)/range)*(h-p.t-p.b);
+    i === 0 ? trainCtx.moveTo(x,y) : trainCtx.lineTo(x,y);
+  });
+  trainCtx.stroke();
+}
+new ResizeObserver(resizeTrainChart).observe(trainCanvas);
+
+let trainStopFlag = false;
+
+startBtn.addEventListener('click', async () => {
+  const errorEl = document.getElementById('train-error');
+  errorEl.classList.remove('visible');
+  startBtn.disabled = true;
+  const stopBtn = document.getElementById('train-stop-btn');
+  stopBtn.style.display = 'block';
+  document.getElementById('train-save-idb').disabled = true;
+  document.getElementById('train-save-dl').disabled = true;
+  document.getElementById('status-dot').className = 'loading';
+  trainStopFlag = false;
+  trainLosses.length = 0;
+  drawTrainChart();
+
+  const ckUrl   = document.getElementById('train-ckpt-url').value.trim();
+  const epochs  = parseInt(trainEpochs.value, 10);
+  const seqLen  = parseInt(trainSeqLen.value, 10);
+  const lr      = Math.pow(10, parseFloat(trainLr.value));
+  const mSize   = document.getElementById('train-model-size').value;
+  const corpus  = corpusEl.value;
+
+  try {
+    const statStep = document.getElementById('train-stat-step');
+    session = await createSession(
+      { modelSize: mSize, ...(ckUrl ? { checkpointUrl: ckUrl } : {}) },
+      null,
+      { textContent: '' },
+    );
+    document.getElementById('status-dot').className = 'ready';
+    const t0 = Date.now();
+
+    await session.adapt(corpus, {
+      fullTrain: true, epochs, learningRate: lr, seqLen,
+      onProgress(epoch, loss) {
+        if (trainStopFlag) throw new Error('Stopped');
+        trainLosses.push(loss);
+        drawTrainChart();
+        statStep.textContent                                  = `Epoch ${epoch}/${epochs}`;
+        document.getElementById('train-stat-loss').textContent = loss.toFixed(4);
+        document.getElementById('train-stat-ppl').textContent  = Math.exp(loss).toFixed(1);
+        document.getElementById('train-stat-time').textContent = `${((Date.now()-t0)/1000).toFixed(0)}s`;
+      },
+    });
+
+    document.getElementById('train-save-idb').disabled = false;
+    document.getElementById('train-save-dl').disabled  = false;
+    document.getElementById('train-stat-step').textContent = 'Training complete';
+    document.getElementById('train-continue-row').style.display = 'flex';
+    unlockSteps();
+  } catch (err) {
+    if (err.message !== 'Stopped') {
+      errorEl.textContent = err.message; errorEl.classList.add('visible');
+      document.getElementById('status-dot').className = 'error';
+    } else {
+      document.getElementById('status-dot').className = 'ready';
+      document.getElementById('train-stat-step').textContent = 'Stopped';
+      if (session) {
+        document.getElementById('train-save-idb').disabled = false;
+        document.getElementById('train-save-dl').disabled  = false;
+        document.getElementById('train-continue-row').style.display = 'flex';
+        unlockSteps();
+      }
+    }
+  } finally {
+    startBtn.disabled = corpus.length < 500;
+    stopBtn.style.display = 'none';
+  }
+});
+
+document.getElementById('train-stop-btn').addEventListener('click', () => { trainStopFlag = true; });
+
+document.getElementById('train-save-idb').addEventListener('click', async () => {
+  if (!session) return;
+  const b = document.getElementById('train-save-idb'); b.disabled = true;
+  const s = document.getElementById('train-save-status'); s.textContent = 'Saving…';
+  try {
+    await session.save({ storage: 'indexedDB', key: 'mambakit-default' });
+    s.textContent = '✓ Saved to browser storage.';
+  } catch (err) { s.textContent = `Error: ${err.message}`; }
+  finally { b.disabled = false; }
+});
+
+document.getElementById('train-save-dl').addEventListener('click', async () => {
+  if (!session) return;
+  const b = document.getElementById('train-save-dl'); b.disabled = true;
+  const s = document.getElementById('train-save-status'); s.textContent = 'Preparing…';
+  try {
+    await session.save({ storage: 'download', filename: 'mambakit-pretrained.bin' });
+    s.textContent = '✓ Downloaded.';
+  } catch (err) { s.textContent = `Error: ${err.message}`; }
+  finally { b.disabled = false; }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 1 — CONVERT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const QWEN_VOCAB = 151936;
+
+function bf16ToF32(bytes) {
+  const n=bytes.length/2, f32=new Float32Array(n), u16=new Uint16Array(bytes.buffer,bytes.byteOffset,n), u32=new Uint32Array(f32.buffer);
+  for(let i=0;i<n;i++) u32[i]=u16[i]<<16; return f32;
+}
+function f16ToF32(bytes) {
+  const n=bytes.length/2, f32=new Float32Array(n), u16=new Uint16Array(bytes.buffer,bytes.byteOffset,n);
+  for(let i=0;i<n;i++){const h=u16[i],sign=(h>>15)&1,exp=(h>>10)&0x1f,frac=h&0x3ff;
+    if(exp===0) f32[i]=(sign?-1:1)*Math.pow(2,-14)*(frac/1024);
+    else if(exp===31) f32[i]=frac?NaN:(sign?-Infinity:Infinity);
+    else f32[i]=(sign?-1:1)*Math.pow(2,exp-15)*(1+frac/1024);}
+  return f32;
+}
+function parseSafetensors(buf){const view=new DataView(buf),hl=Number(view.getBigUint64(0,true)),header=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,8,hl)));return{header,dataStart:8+hl,buffer:buf};}
+function getTensor(st,name){const info=st.header[name];if(!info)return null;const{dtype,shape,data_offsets:[s,e]}=info,bytes=new Uint8Array(st.buffer,st.dataStart+s,e-s);let f32;if(dtype==='F32')f32=new Float32Array(bytes.buffer,bytes.byteOffset,(e-s)/4);else if(dtype==='BF16')f32=bf16ToF32(bytes);else if(dtype==='F16')f32=f16ToF32(bytes);else throw new Error(`Unsupported dtype: ${dtype}`);return{data:f32,shape};}
+function detectConfig(hdr){const emb=hdr['backbone.embedding.weight'];if(!emb)throw new Error('Not a state-spaces/mamba model');const[origVocab,dModel]=emb.shape;let numLayers=0;while(hdr[`backbone.layers.${numLayers}.mixer.in_proj.weight`])numLayers++;if(!numLayers)throw new Error('No layers found');const inProj=hdr['backbone.layers.0.mixer.in_proj.weight'],dInner=inProj.shape[0]/2,conv=hdr['backbone.layers.0.mixer.conv1d.weight'],dConv=conv.shape[conv.shape.length-1],aLog=hdr['backbone.layers.0.mixer.A_log'],dState=aLog.shape[1],expand=dInner/dModel,dtRank=Math.ceil(dModel/16);return{dModel,numLayers,dInner,dConv,dState,expand,dtRank,origVocab};}
+function* gaussianGen(std=0.02){while(true){const u1=Math.random()||1e-10,u2=Math.random(),r=std*Math.sqrt(-2*Math.log(u1));yield r*Math.cos(2*Math.PI*u2);yield r*Math.sin(2*Math.PI*u2);}}
+function randFill(n,std=0.02){const f=new Float32Array(n),g=gaussianGen(std);for(let i=0;i<n;i++)f[i]=g.next().value;return f;}
+const czeros=n=>new Float32Array(n), cones=n=>{const f=new Float32Array(n);f.fill(1);return f;};
+function writeMbjs(params){const total=params.reduce((s,p)=>s+p.data.length,0),n=params.length,hb=12+n*4,buf=new ArrayBuffer(hb+total*4),view=new DataView(buf);view.setUint32(0,0x4D424A53,true);view.setUint32(4,1,true);view.setUint32(8,n,true);let pos=12;for(const p of params){view.setUint32(pos,p.data.length,true);pos+=4;}const out=new Float32Array(buf,hb);let off=0;for(const p of params){out.set(p.data,off);off+=p.data.length;}return buf;}
+
+function convertSafetensors(st, cfg, onProgress) {
+  const{dModel,numLayers,dInner,dConv,dState,dtRank,origVocab}=cfg;
+  const params=[]; let step=0;
+  const prog=msg=>onProgress(++step/(2+numLayers),msg);
+  prog('Converting embedding…');
+  const origEmb=getTensor(st,'backbone.embedding.weight');
+  let embData;
+  if(origVocab>=QWEN_VOCAB){embData=origEmb.data.slice(0,QWEN_VOCAB*dModel);}
+  else{embData=new Float32Array(QWEN_VOCAB*dModel);embData.set(origEmb.data);embData.set(randFill((QWEN_VOCAB-origVocab)*dModel,0.02),origVocab*dModel);}
+  params.push({name:'embedding',data:embData});
+  for(let i=0;i<numLayers;i++){
+    prog(`Layer ${i+1}/${numLayers}…`);
+    const pfx=`backbone.layers.${i}.mixer`;
+    const wip=getTensor(st,`${pfx}.in_proj.weight`);params.push({name:`b${i}.wInProj`,data:wip.data});params.push({name:`b${i}.bInProj`,data:czeros(2*dInner)});
+    const cv=getTensor(st,`${pfx}.conv1d.weight`);params.push({name:`b${i}.wConv`,data:cv.data});
+    const bc=getTensor(st,`${pfx}.conv1d.bias`);params.push({name:`b${i}.bConv`,data:bc?bc.data:czeros(dInner)});
+    const xp=getTensor(st,`${pfx}.x_proj.weight`);params.push({name:`b${i}.wXProj`,data:xp.data});params.push({name:`b${i}.bXProj`,data:czeros(dtRank+2*dState)});
+    const dp=getTensor(st,`${pfx}.dt_proj.weight`);params.push({name:`b${i}.wDtProj`,data:dp.data});
+    const db=getTensor(st,`${pfx}.dt_proj.bias`);params.push({name:`b${i}.bDtProj`,data:db?db.data:czeros(dInner)});
+    const al=getTensor(st,`${pfx}.A_log`);params.push({name:`b${i}.A_log`,data:al.data});
+    const dv=getTensor(st,`${pfx}.D`);params.push({name:`b${i}.D_vec`,data:dv.data});
+    const op=getTensor(st,`${pfx}.out_proj.weight`);params.push({name:`b${i}.wOutProj`,data:op.data});params.push({name:`b${i}.bOutProj`,data:czeros(dModel)});
+    const nw=getTensor(st,`backbone.layers.${i}.norm.weight`);params.push({name:`b${i}.norm`,data:nw?nw.data:cones(dModel)});
+  }
+  prog('Finalising…');
+  const fn=getTensor(st,'backbone.norm_f.weight');params.push({name:'final_norm',data:fn?fn.data:cones(dModel)});
+  return writeMbjs(params);
+}
+
+let convertBuffer=null, convertCfg=null, convertFile=null;
+
+const dropZone=document.getElementById('convert-drop-zone');
+const convFileIn=document.getElementById('convert-file-input');
+dropZone.addEventListener('click',()=>convFileIn.click());
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');handleConvFile(e.dataTransfer.files[0]);});
+convFileIn.addEventListener('change',()=>handleConvFile(convFileIn.files[0]));
+
+function handleConvFile(file){
+  if(!file)return; convertFile=file;
+  const errEl=document.getElementById('convert-error'); errEl.classList.remove('visible');
+  document.getElementById('convert-result').classList.remove('visible');
+  document.getElementById('convert-btn').disabled=true;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{const st=parseSafetensors(e.target.result),cfg=detectConfig(st.header);convertCfg=cfg;
+      const sizeMb=((QWEN_VOCAB*cfg.dModel+cfg.numLayers*(2*cfg.dInner*cfg.dModel+2*cfg.dInner*cfg.dConv+cfg.dInner*(cfg.dtRank+2*cfg.dState)*2+cfg.dInner*cfg.dState+cfg.dInner+cfg.dModel*cfg.dInner+cfg.dModel*2)+cfg.dModel)*4/1024/1024).toFixed(0);
+      document.getElementById('convert-model-info').innerHTML=`<span style="color:var(--muted)">d_model</span> <b>${cfg.dModel}</b> &nbsp; <span style="color:var(--muted)">layers</span> <b>${cfg.numLayers}</b> &nbsp; <span style="color:var(--muted)">orig vocab</span> <b>${cfg.origVocab.toLocaleString()}</b> → <b>${QWEN_VOCAB.toLocaleString()}</b> &nbsp; <span style="color:var(--muted)">output</span> <b>~${sizeMb} MB</b>`;
+      document.getElementById('convert-model-info').classList.add('visible');
+      document.getElementById('convert-btn').disabled=false;
+    }catch(err){errEl.textContent=`Failed: ${err.message}`;errEl.classList.add('visible');}
+  };
+  r.readAsArrayBuffer(file);
+}
+
+document.getElementById('convert-btn').addEventListener('click',async()=>{
+  const errEl=document.getElementById('convert-error'); errEl.classList.remove('visible');
+  document.getElementById('convert-result').classList.remove('visible');
+  document.getElementById('convert-btn').disabled=true;
+  const progWrap=document.getElementById('convert-progress'); progWrap.classList.add('visible');
+  const bar=document.getElementById('convert-bar'), lbl=document.getElementById('convert-label');
+  await new Promise(r=>setTimeout(r,0));
+  try{
+    const r2=new FileReader();
+    const buf=await new Promise((res,rej)=>{r2.onload=e=>res(e.target.result);r2.onerror=rej;r2.readAsArrayBuffer(convertFile);});
+    const st=parseSafetensors(buf);
+    convertBuffer=convertSafetensors(st,convertCfg,(pct,msg)=>{bar.style.width=`${(pct*100).toFixed(0)}%`;lbl.textContent=msg;});
+    bar.style.width='100%'; lbl.textContent='Done';
+    document.getElementById('convert-result-text').textContent=`Converted ${convertCfg.numLayers}-layer Mamba (d_model=${convertCfg.dModel}). Embedding padded from ${convertCfg.origVocab.toLocaleString()} → ${QWEN_VOCAB.toLocaleString()} tokens. Run a few KB ingestions to warm up the new token slots.`;
+    document.getElementById('convert-result').classList.add('visible');
+  }catch(err){errEl.textContent=`Conversion failed: ${err.message}`;errEl.classList.add('visible');}
+  finally{document.getElementById('convert-btn').disabled=false;}
+});
+
+async function saveConvertToIdb(){
+  if(!convertBuffer)return;
+  await new Promise((resolve,reject)=>{const req=indexedDB.open('mambakit',1);req.onupgradeneeded=e=>e.target.result.createObjectStore('checkpoints');req.onsuccess=e=>{const db=e.target.result,tx=db.transaction('checkpoints','readwrite');tx.objectStore('checkpoints').put(convertBuffer,'mambakit-default');tx.oncomplete=resolve;tx.onerror=reject;};req.onerror=reject;});
+}
+
+document.getElementById('convert-save-idb').addEventListener('click',async()=>{
+  const btn=document.getElementById('convert-save-idb'); btn.disabled=true;
+  try{
+    await saveConvertToIdb();
+    document.getElementById('status-dot').className='loading';
+    const bar=document.getElementById('convert-bar'),lbl=document.getElementById('convert-label');
+    bar.style.width='0%'; lbl.textContent='Loading model…';
+    const progWrap=document.getElementById('convert-progress'); progWrap.classList.add('visible');
+    session=await createSession({modelSize:'nano'},bar,lbl);
+    const loaded=await session.load({storage:'indexedDB',key:'mambakit-default'});
+    if(!loaded)throw new Error('Failed to load from IDB after save.');
+    lbl.textContent='Ready'; bar.style.width='100%';
+    document.getElementById('convert-continue-row').style.display='flex';
+    unlockSteps();
+  }catch(err){document.getElementById('convert-error').textContent=`Error: ${err.message}`;document.getElementById('convert-error').classList.add('visible');}
+  finally{btn.disabled=false;}
+});
+
+document.getElementById('convert-save-dl').addEventListener('click',()=>{
+  if(!convertBuffer)return;
+  const blob=new Blob([convertBuffer],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='mamba-converted.bin';a.click();URL.revokeObjectURL(url);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 1 — LOAD URL
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('loadurl-btn').addEventListener('click', async () => {
+  const url   = document.getElementById('loadurl-input').value.trim();
+  const mSize = document.getElementById('loadurl-size').value;
+  const errEl = document.getElementById('loadurl-error'); errEl.classList.remove('visible');
+  if (!url) { errEl.textContent = 'Please enter a URL.'; errEl.classList.add('visible'); return; }
+  const btn = document.getElementById('loadurl-btn'); btn.disabled = true;
+  const bar = document.getElementById('loadurl-bar'), lbl = document.getElementById('loadurl-label');
+  document.getElementById('loadurl-progress').classList.add('visible');
+  document.getElementById('status-dot').className = 'loading';
+  try {
+    session = await createSession({ modelSize: mSize, checkpointUrl: url }, bar, lbl);
+    lbl.textContent = 'Ready'; bar.style.width = '100%';
+    document.getElementById('loadurl-continue-row').style.display = 'flex';
+    unlockSteps();
+  } catch (err) {
+    errEl.textContent = err.message; errEl.classList.add('visible');
+    document.getElementById('status-dot').className = 'error';
+  } finally { btn.disabled = false; }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 1 — FRESH START
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('fresh-btn').addEventListener('click', async () => {
+  const mSize = document.getElementById('fresh-size').value;
+  const errEl = document.getElementById('fresh-error'); errEl.classList.remove('visible');
+  const btn = document.getElementById('fresh-btn'); btn.disabled = true;
+  const bar = document.getElementById('fresh-bar'), lbl = document.getElementById('fresh-label');
+  document.getElementById('fresh-progress').classList.add('visible');
+  document.getElementById('status-dot').className = 'loading';
+  try {
+    session = await createSession({ modelSize: mSize }, bar, lbl);
+    lbl.textContent = 'Ready'; bar.style.width = '100%';
+    document.getElementById('fresh-continue-row').style.display = 'block';
+    unlockSteps();
+  } catch (err) {
+    errEl.textContent = err.message; errEl.classList.add('visible');
+    document.getElementById('status-dot').className = 'error';
+  } finally { btn.disabled = false; }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 2 — KNOWLEDGE BASE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SAMPLE_DOCS = [
+  { id: 'mambakit-overview', content: `MambaKit is an opinionated, browser-native AI toolkit built on top of MambaCode.js.\nIt collapses eight steps of GPU setup, tokenisation, model construction, and weight management into a single MambaSession.create() call.\n\nMambaKit uses the Qwen2.5-Coder tokenizer by default, which supports 151,000 tokens and is optimised for code and natural language.\n\nThe session object exposes four capabilities:\n- complete(prompt) — generate a text continuation from a prompt.\n- completeStream(prompt) — stream tokens one at a time for real-time UIs.\n- adapt(text) — fine-tune the model on new text using WSLA fast-adapt.\n- evaluate(text) — measure the model's perplexity on text (lower is better).\n\nWeights can be saved to browser IndexedDB with session.save(), downloaded as a .bin file, or loaded from either source with session.load().` },
+  { id: 'mambakit-examples', content: `MambaKit Studio is a single-page application that guides you through three prescriptive steps.\n\nStep 1 — Get Weights: choose how to initialise the model.\n  • Train on Dataset: stream a coding dataset from HuggingFace and run full pretraining in your browser.\n  • Convert Checkpoint: drop a state-spaces/mamba safetensors file to produce an MBJS checkpoint.\n  • Load from URL: load a hosted .bin checkpoint directly.\n  • Fresh Start: use random weights — useful for the Knowledge Base step only.\n\nStep 2 — Knowledge Base: fine-tune on your documents using WSLA fast-adapt.\n  Ingest the sample documents or paste your own text. Perplexity drops after each ingestion, showing the model is learning.\n  Save the adapted weights to browser storage or download as a .bin file.\n\nStep 3 — Chat & Code: use the trained model.\n  Chat provides a multi-turn conversation UI with streaming output.\n  Code Completion provides an editor with streaming multi-token continuation and single-line completion modes.` },
+  { id: 'mambakit-wsla', content: `WSLA stands for Weight-Space Learning Adaptation. It is a fast fine-tuning algorithm built into MambaCode.js.\n\nUnlike full backpropagation, WSLA updates only a small subset of weight directions per step, making it practical to run in the browser on consumer hardware with WebGPU.\n\nWhen you call session.adapt(text), WSLA runs three epochs by default and returns the per-epoch loss values.\nA decreasing loss curve means the model is learning the content.\nPerplexity before and after ingestion is shown so you can see the model improving.\n\nWSLA is not a replacement for large-scale pretraining. It is designed to quickly specialise an existing model on a narrow domain such as your private documentation, codebase, or product knowledge.` },
+];
+
+let kbTotalMs = 0;
+
+document.getElementById('kb-sample-btn').addEventListener('click', async () => {
+  if (!kb) return;
+  const btn = document.getElementById('kb-sample-btn'); btn.disabled = true; btn.textContent = 'Ingesting…';
+  for (const doc of SAMPLE_DOCS) await runIngest(doc.id, doc.content);
+  btn.textContent = 'Ingest Sample Documents'; btn.disabled = false;
+});
+
+document.getElementById('kb-ingest-btn').addEventListener('click', async () => {
+  if (!kb) return;
+  const id = document.getElementById('kb-doc-id').value.trim();
+  const content = document.getElementById('kb-doc-content').value.trim();
+  if (!id || !content) return;
+  const btn = document.getElementById('kb-ingest-btn'); btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Ingesting…';
+  try {
+    await runIngest(id, content);
+    document.getElementById('kb-doc-id').value = '';
+    document.getElementById('kb-doc-content').value = '';
+  } finally { btn.disabled = false; btn.textContent = 'Ingest'; }
+});
+
+async function runIngest(id, content) {
+  const t0 = Date.now();
+  const barWrap = document.getElementById('kb-progress'); barWrap.classList.add('visible');
+  const bar = document.getElementById('kb-bar'), lbl = document.getElementById('kb-label');
+  bar.style.width = '0%'; lbl.textContent = `Ingesting "${id}"…`;
+  const result = await kb.ingest({ id, content }, {
+    wsla: true, epochs: 3,
+    onProgress: (epoch, loss) => {
+      lbl.textContent = `"${id}" · epoch ${epoch} · loss ${loss.toFixed(4)}`;
+      bar.style.width = `${(epoch / 3) * 100}%`;
+    },
+  });
+  const elapsed = Date.now() - t0; kbTotalMs += elapsed;
+  bar.style.width = '100%'; lbl.textContent = 'Ready';
+  document.getElementById('kb-save-idb').disabled = false;
+  document.getElementById('kb-save-dl').disabled = false;
+  const count = kb.documentCount;
+  document.getElementById('kb-doc-count').textContent = count;
+  document.getElementById('kb-stat-docs').textContent = count;
+  document.getElementById('kb-stat-time').textContent = `${(kbTotalMs/1000).toFixed(1)}s`;
+  document.getElementById('kb-stat-perp').textContent = result.perplexityAfter.toFixed(2);
+  addKbCard(result, elapsed);
+}
+
+function addKbCard(result, ms) {
+  const card = document.createElement('div'); card.className = 'doc-card';
+  card.innerHTML = `<div class="doc-id">${escHtml(result.id)}</div>
+    <div class="doc-meta">${result.epochCount} epochs · ${(ms/1000).toFixed(1)}s</div>
+    <div class="perp-change">
+      <span class="perp-before">${result.perplexityBefore.toFixed(2)}</span>
+      <span class="perp-arrow">→</span>
+      <span class="perp-after">${result.perplexityAfter.toFixed(2)}</span>
+      <span class="${result.improved?'improved':'worsened'}">${result.improved?'▼ improved':'▲ worsened'}</span>
+    </div>`;
+  document.getElementById('kb-cards').prepend(card);
+}
+
+async function runQuery() {
+  if (!kb) return;
+  const q = document.getElementById('kb-query-input').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('kb-query-btn'); btn.disabled = true;
+  const ansEl = document.getElementById('kb-answer-text');
+  ansEl.textContent = 'Generating…'; ansEl.className = 'loading';
+  try {
+    const answer = await kb.query(q, { maxNewTokens: 300, temperature: 0.5 });
+    ansEl.textContent = answer; ansEl.className = '';
+  } catch (err) { ansEl.textContent = `Error: ${err.message}`; ansEl.className = ''; }
+  finally { btn.disabled = false; }
+}
+document.getElementById('kb-query-btn').addEventListener('click', runQuery);
+document.getElementById('kb-query-input').addEventListener('keydown', e => { if (e.key === 'Enter') runQuery(); });
+
+document.getElementById('kb-save-idb').addEventListener('click', async () => {
+  if (!session) return;
+  const btn = document.getElementById('kb-save-idb'); btn.disabled = true;
+  const s = document.getElementById('kb-save-status'); s.textContent = 'Saving…';
+  try { await session.save({ storage: 'indexedDB', key: 'mambakit-default' }); s.textContent = '✓ Saved to browser storage.'; }
+  catch (err) { s.textContent = `Error: ${err.message}`; }
+  finally { btn.disabled = false; }
+});
+document.getElementById('kb-save-dl').addEventListener('click', async () => {
+  if (!session) return;
+  const btn = document.getElementById('kb-save-dl'); btn.disabled = true;
+  const s = document.getElementById('kb-save-status'); s.textContent = 'Preparing…';
+  try { await session.save({ storage: 'download', filename: 'mambakit-model.bin' }); s.textContent = '✓ Downloaded.'; }
+  catch (err) { s.textContent = `Error: ${err.message}`; }
+  finally { btn.disabled = false; }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 3 — CHAT
+// ═══════════════════════════════════════════════════════════════════════════
+
+window.applyChatbot = function() {
+  if (!session) return;
+  const prompt = document.getElementById('chat-system-prompt').value;
+  chatbot = new MambaChatbot(session, prompt || 'You are a helpful assistant.');
+  const msg = document.getElementById('chat-messages'); msg.innerHTML = '';
+  appendMsg('assistant', 'System prompt updated. How can I help?');
+};
+
+let chatGenerating = false;
+
+async function sendChat() {
+  if (!chatbot || chatGenerating) return;
+  const input = document.getElementById('chat-user-input');
+  const text  = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  chatGenerating = true;
+  document.getElementById('chat-send-btn').disabled = true;
+  appendMsg('user', text);
+  const typing = appendTyping();
+  let el = null, full = '';
+  try {
+    for await (const token of chatbot.chatStream(text)) {
+      if (!el) { typing.remove(); el = appendMsg('assistant', ''); }
+      full += token;
+      el.querySelector('.bubble').textContent = full;
+      document.getElementById('chat-messages').scrollTop = 9999;
+    }
+  } catch (err) { typing.remove(); appendMsg('assistant', `Error: ${err.message}`); }
+  finally { chatGenerating = false; document.getElementById('chat-send-btn').disabled = false; document.getElementById('chat-user-input').focus(); }
+}
+
+document.getElementById('chat-send-btn').addEventListener('click', sendChat);
+document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+document.getElementById('chat-clear-btn').addEventListener('click', () => {
+  if (!chatbot) return;
+  chatbot.clearHistory();
+  document.getElementById('chat-messages').innerHTML = '';
+  appendMsg('assistant', 'Conversation cleared.');
+});
+
+function appendMsg(role, text) {
+  const div = document.createElement('div'); div.className = `msg ${role}`;
+  div.innerHTML = `<div class="avatar">${role==='user'?'U':'M'}</div><div class="bubble">${escHtml(text)}</div>`;
+  document.getElementById('chat-messages').appendChild(div);
+  document.getElementById('chat-messages').scrollTop = 9999;
+  return div;
+}
+function appendTyping() {
+  const div = document.createElement('div'); div.className = 'msg assistant';
+  div.innerHTML = `<div class="avatar">M</div><div class="bubble typing-indicator"><span></span><span></span><span></span></div>`;
+  document.getElementById('chat-messages').appendChild(div);
+  return div;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 3 — CODE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const maxTok = document.getElementById('code-max-tokens');
+const tempEl  = document.getElementById('code-temperature');
+maxTok.addEventListener('input', () => document.getElementById('code-max-val').textContent = maxTok.value);
+tempEl.addEventListener('input', () => document.getElementById('code-temp-val').textContent = parseFloat(tempEl.value).toFixed(2));
+
+document.querySelectorAll('.snippet-btn').forEach(btn => {
+  btn.addEventListener('click', () => { document.getElementById('code-input-area').value = btn.dataset.code; });
+});
+
+let codeBusy = false;
+
+document.getElementById('code-complete-btn').addEventListener('click', async () => {
+  if (!completer || codeBusy) return;
+  const prefix = document.getElementById('code-input-area').value;
+  if (!prefix.trim()) return;
+  codeBusy = true;
+  document.getElementById('code-complete-btn').disabled = true;
+  document.getElementById('code-complete-line-btn').disabled = true;
+  const out = document.getElementById('code-output-text');
+  const meta = document.getElementById('code-output-meta');
+  out.className = 'streaming'; out.textContent = ''; meta.textContent = '';
+  const opts = { maxNewTokens: parseInt(maxTok.value,10), temperature: parseFloat(tempEl.value) };
+  const t0 = Date.now(); let count = 0;
+  try {
+    for await (const tok of completer.completeStream(prefix, opts)) { out.textContent += tok; count++; }
+    meta.textContent = `${count} tokens · ${((Date.now()-t0)/1000).toFixed(1)}s`;
+    out.className = '';
+  } catch (err) { out.textContent = `Error: ${err.message}`; out.className = ''; }
+  finally { codeBusy = false; document.getElementById('code-complete-btn').disabled = false; document.getElementById('code-complete-line-btn').disabled = false; }
+});
+
+document.getElementById('code-complete-line-btn').addEventListener('click', async () => {
+  if (!completer || codeBusy) return;
+  const prefix = document.getElementById('code-input-area').value;
+  if (!prefix.trim()) return;
+  codeBusy = true;
+  document.getElementById('code-complete-btn').disabled = true;
+  document.getElementById('code-complete-line-btn').disabled = true;
+  const out = document.getElementById('code-output-text'); const meta = document.getElementById('code-output-meta');
+  out.className = 'streaming'; out.textContent = 'Completing line…'; meta.textContent = '';
+  const t0 = Date.now();
+  try {
+    const result = await completer.completeLine(prefix);
+    out.textContent = result.slice(prefix.length) || '(no continuation)';
+    out.className = ''; meta.textContent = `Single-line · ${Date.now()-t0}ms`;
+    document.getElementById('code-input-area').value = result;
+  } catch (err) { out.textContent = `Error: ${err.message}`; out.className = ''; }
+  finally { codeBusy = false; document.getElementById('code-complete-btn').disabled = false; document.getElementById('code-complete-line-btn').disabled = false; }
+});
+
+// ── Shared helpers ─────────────────────────────────────────────────────────
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

@@ -8,11 +8,12 @@
  *   import { MambaSession } from 'mambacode.js/kit';
  */
 
-export { MambaSession }     from './session.js';
-export { MambaKitError }    from './errors.js';
-export { MODEL_PRESETS }    from './presets.js';
+export { MambaSession }        from './session.js';
+export { MambaKitError }       from './errors.js';
+export { MODEL_PRESETS, resolveLayerSchedule } from './presets.js';
 
 export type { MambaKitErrorCode }  from './errors.js';
+export type { LayerSchedulePreset } from './presets.js';
 export type {
     MambaSessionOptions,
     CompleteOptions,

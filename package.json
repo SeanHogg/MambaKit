@@ -21,6 +21,8 @@
   ],
   "scripts": {
     "build": "tsc",
+    "serve": "node serve.js",
+    "generate-bin": "node tools/generate-bin.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "lint": "eslint src/ tests/",
     "prepublishOnly": "npm run build"
@@ -56,7 +58,7 @@
     "access": "public"
   },
   "dependencies": {
-    "mambacode.js": "^1.0.0"
+    "mambacode.js": "^1.0.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

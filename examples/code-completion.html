@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MambaKit — Code Completion Example</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0d1117;
+      color: #e2e8f0;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 14px 20px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1rem; font-weight: 600; }
+    .badge { font-size: 0.7rem; background: #1f6feb; color: #fff; padding: 2px 8px; border-radius: 999px; }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #6b7280; margin-left: auto; transition: background 0.3s;
+    }
+    #status-dot.ready   { background: #3fb950; }
+    #status-dot.loading { background: #d29922; animation: pulse 1s infinite; }
+    #status-dot.error   { background: #f85149; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+    #app { flex: 1; display: grid; grid-template-columns: 260px 1fr; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 16px;
+      gap: 14px;
+    }
+    #sidebar h2 { font-size: 0.72rem; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    #load-btn {
+      width: 100%;
+      padding: 9px;
+      background: #1f6feb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #load-btn:hover:not(:disabled) { background: #388bfd; }
+    #load-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    details summary { font-size: 0.72rem; color: #484f58; cursor: pointer; user-select: none; }
+    details summary:hover { color: #8b949e; }
+    .adv-field { margin-top: 8px; }
+    .adv-field label { display: block; font-size: 0.72rem; color: #484f58; margin-bottom: 3px; }
+    .adv-field input {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      padding: 6px 8px;
+      color: #e2e8f0;
+      font-size: 0.78rem;
+    }
+    .adv-field input:focus { outline: none; border-color: #1f6feb; }
+
+    #progress-wrap { display: none; }
+    #progress-wrap.visible { display: block; }
+    #progress-bar-bg { height: 3px; background: #30363d; border-radius: 2px; }
+    #progress-bar { height: 100%; background: #1f6feb; border-radius: 2px; width: 0; transition: width 0.2s; }
+    #progress-label { font-size: 0.7rem; color: #8b949e; margin-top: 3px; }
+
+    #error-msg {
+      background: #2d1515; border: 1px solid #6e2c2c; color: #fca5a5;
+      border-radius: 5px; padding: 7px 9px; font-size: 0.76rem; display: none;
+    }
+    #error-msg.visible { display: block; }
+    #random-weights-warning {
+      background: #1c1a07; border: 1px solid #854d0e; color: #fbbf24;
+      border-radius: 5px; padding: 7px 9px; font-size: 0.76rem; margin-top: 6px; display: none;
+    }
+    #random-weights-warning.visible { display: block; }
+
+    .divider { height: 1px; background: #30363d; }
+
+    .setting { display: flex; flex-direction: column; gap: 4px; }
+    .setting label { font-size: 0.72rem; color: #8b949e; display: flex; justify-content: space-between; }
+    .setting label span { color: #e2e8f0; font-weight: 600; }
+    .setting input[type=range] { width: 100%; accent-color: #1f6feb; }
+
+    #snippets h2 { margin-bottom: 8px; }
+    .snippet-btn {
+      display: block; width: 100%; text-align: left;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 5px;
+      padding: 7px 9px; color: #8b949e;
+      font-size: 0.76rem; font-family: 'Fira Code', 'Cascadia Code', monospace;
+      cursor: pointer; margin-bottom: 5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: border-color 0.12s, color 0.12s;
+    }
+    .snippet-btn:hover { border-color: #1f6feb; color: #e2e8f0; }
+
+    /* ── Editor ── */
+    #editor-pane { display: flex; flex-direction: column; overflow: hidden; }
+    #editor-header {
+      padding: 10px 16px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tab {
+      padding: 3px 10px; border-radius: 4px;
+      font-size: 0.78rem; color: #e2e8f0;
+      background: #0d1117; border: 1px solid #30363d;
+    }
+    #btn-complete, #btn-complete-line {
+      padding: 5px 14px; border: none; border-radius: 5px;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.12s;
+    }
+    #btn-complete { background: #1f6feb; color: #fff; margin-left: auto; }
+    #btn-complete:hover:not(:disabled) { background: #388bfd; }
+    #btn-complete-line {
+      background: #21262d; color: #e2e8f0; border: 1px solid #30363d; margin-left: 6px;
+    }
+    #btn-complete-line:hover:not(:disabled) { background: #30363d; }
+    #btn-complete:disabled, #btn-complete-line:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #editor-body { flex: 1; display: grid; grid-template-rows: 1fr auto; overflow: hidden; }
+    #code-input {
+      background: #0d1117; border: none; padding: 18px 20px;
+      color: #e2e8f0; font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 0.9rem; line-height: 1.7; resize: none; outline: none; overflow-y: auto;
+    }
+    #output-pane {
+      border-top: 1px solid #30363d; background: #161b22;
+      padding: 12px 20px; max-height: 200px; overflow-y: auto;
+    }
+    #output-pane h3 {
+      font-size: 0.7rem; font-weight: 600; color: #8b949e;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; font-family: system-ui;
+    }
+    #output-text {
+      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 0.85rem; color: #3fb950; white-space: pre-wrap; word-break: break-word; min-height: 36px;
+    }
+    #output-text.streaming { color: #79c0ff; }
+    #output-text.placeholder { color: #484f58; }
+    #output-meta { margin-top: 6px; font-size: 0.7rem; color: #8b949e; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>MambaKit Code Completion</h1>
+  <span class="badge">Example</span>
+  <div id="status-dot"></div>
+</header>
+
+<div id="app">
+  <aside id="sidebar">
+    <h2>Model</h2>
+    <button id="load-btn">Load Model</button>
+
+    <details>
+      <summary>Advanced — load weights</summary>
+      <div class="adv-field">
+        <label>Checkpoint URL (.bin) — provide a hosted model file</label>
+        <input id="checkpoint-url" type="url" placeholder="https://example.com/model.bin" />
+      </div>
+      <div class="adv-field" style="margin-top:6px;">
+        <button id="load-idb-btn" style="width:100%;padding:6px;background:#0d1117;color:#8b949e;border:1px solid #30363d;border-radius:5px;font-size:0.78rem;font-weight:600;cursor:pointer;">Load from browser storage</button>
+        <div style="font-size:0.7rem;color:#484f58;margin-top:3px;">Use weights saved from the Knowledge Base example.</div>
+      </div>
+    </details>
+
+    <div id="error-msg"></div>
+    <div id="random-weights-warning"></div>
+    <div id="progress-wrap">
+      <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+      <div id="progress-label">Initialising…</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="setting">
+      <label>Max tokens <span id="max-tokens-val">128</span></label>
+      <input id="max-tokens" type="range" min="16" max="512" step="16" value="128" />
+    </div>
+    <div class="setting">
+      <label>Temperature <span id="temp-val">0.40</span></label>
+      <input id="temperature" type="range" min="0" max="2" step="0.05" value="0.4" />
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="snippets">
+      <h2>Starter Snippets</h2>
+      <button class="snippet-btn" data-code="function fibonacci(n: number): number {">function fibonacci(n: number): number {</button>
+      <button class="snippet-btn" data-code="async function fetchUser(id: string) {">async function fetchUser(id: string) {</button>
+      <button class="snippet-btn" data-code="class BinaryTree<T> {">class BinaryTree&lt;T&gt; {</button>
+      <button class="snippet-btn" data-code="const debounce = (fn: Function, ms: number) =>">const debounce = (fn, ms) =&gt;</button>
+      <button class="snippet-btn" data-code="def quicksort(arr):">def quicksort(arr):</button>
+    </div>
+  </aside>
+
+  <div id="editor-pane">
+    <div id="editor-header">
+      <div class="tab">untitled.ts</div>
+      <button id="btn-complete-line" disabled>Complete Line</button>
+      <button id="btn-complete" disabled>Complete →</button>
+    </div>
+    <div id="editor-body">
+      <textarea id="code-input" spellcheck="false" placeholder="Type code here, then press Complete →"></textarea>
+      <div id="output-pane">
+        <h3>Completion</h3>
+        <div id="output-text" class="placeholder">Load a model and press Complete to see results.</div>
+        <div id="output-meta"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "mambacode.js": "/node_modules/mambacode.js/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { MambaSession } from '../dist/kit/index.js';
+  import { MambaCodeCompleter } from '../dist/examples/code-completion.js';
+
+  const loadBtn          = document.getElementById('load-btn');
+  const btnComplete      = document.getElementById('btn-complete');
+  const btnCompleteLine  = document.getElementById('btn-complete-line');
+  const codeInput        = document.getElementById('code-input');
+  const outputText       = document.getElementById('output-text');
+  const outputMeta       = document.getElementById('output-meta');
+  const statusDot        = document.getElementById('status-dot');
+  const progressWrap     = document.getElementById('progress-wrap');
+  const progressBar      = document.getElementById('progress-bar');
+  const progressLabel    = document.getElementById('progress-label');
+  const errorMsg         = document.getElementById('error-msg');
+  const randomWeightsWarning = document.getElementById('random-weights-warning');
+  const loadIdbBtn       = document.getElementById('load-idb-btn');
+  const maxTokensInput   = document.getElementById('max-tokens');
+  const tempInput        = document.getElementById('temperature');
+
+  let completer = null;
+  let busy = false;
+
+  const STAGE_OFFSETS = { gpu: 0, tokenizer: 25, model: 50, weights: 75 };
+
+  maxTokensInput.addEventListener('input', () => {
+    document.getElementById('max-tokens-val').textContent = maxTokensInput.value;
+  });
+  tempInput.addEventListener('input', () => {
+    document.getElementById('temp-val').textContent = parseFloat(tempInput.value).toFixed(2);
+  });
+
+  document.querySelectorAll('.snippet-btn').forEach(btn => {
+    btn.addEventListener('click', () => { codeInput.value = btn.dataset.code; codeInput.focus(); });
+  });
+
+  loadBtn.addEventListener('click', async () => {
+    const checkpointUrl = document.getElementById('checkpoint-url').value.trim();
+
+    errorMsg.classList.remove('visible');
+    randomWeightsWarning.classList.remove('visible');
+    loadBtn.disabled = true;
+    statusDot.className = 'loading';
+    progressWrap.classList.add('visible');
+    progressBar.style.width = '0%';
+
+    try {
+      const session = await MambaSession.create(
+        { ...(checkpointUrl ? { checkpointUrl } : {}) },
+        {
+          onProgress({ stage, progress, message }) {
+            const base = STAGE_OFFSETS[stage] ?? 0;
+            progressBar.style.width = `${base + progress * 25}%`;
+            progressLabel.textContent = message;
+          },
+        },
+      );
+
+      completer = new MambaCodeCompleter(session);
+      progressBar.style.width = '100%';
+      progressLabel.textContent = 'Ready';
+      statusDot.className = 'ready';
+      if (!checkpointUrl) {
+        randomWeightsWarning.textContent = '⚠ No weights loaded — completions will be random. Train a model in the Knowledge Base example, save it, then click "Load from browser storage" above.';
+        randomWeightsWarning.classList.add('visible');
+      }
+      btnComplete.disabled = false;
+      btnCompleteLine.disabled = false;
+      codeInput.focus();
+    } catch (err) {
+      statusDot.className = 'error';
+      errorMsg.textContent = err.message ?? String(err);
+      errorMsg.classList.add('visible');
+      loadBtn.disabled = false;
+    }
+  });
+
+  loadIdbBtn.addEventListener('click', async () => {
+    errorMsg.classList.remove('visible');
+    randomWeightsWarning.classList.remove('visible');
+    loadIdbBtn.disabled = true;
+    statusDot.className = 'loading';
+    progressWrap.classList.add('visible');
+    progressBar.style.width = '0%';
+    progressLabel.textContent = 'Loading from browser storage…';
+    try {
+      const session = await MambaSession.create({}, {
+        onProgress({ stage, progress, message }) {
+          const base = STAGE_OFFSETS[stage] ?? 0;
+          progressBar.style.width = `${base + progress * 25}%`;
+          progressLabel.textContent = message;
+        },
+      });
+      const loaded = await session.load({ storage: 'indexedDB', key: 'mambakit-default' });
+      if (!loaded) {
+        throw new Error('No saved model found. Train one in the Knowledge Base example first.');
+      }
+      completer = new MambaCodeCompleter(session);
+      progressBar.style.width = '100%';
+      progressLabel.textContent = 'Ready';
+      statusDot.className = 'ready';
+      btnComplete.disabled = false;
+      btnCompleteLine.disabled = false;
+      codeInput.focus();
+    } catch (err) {
+      statusDot.className = 'error';
+      errorMsg.textContent = err.message ?? String(err);
+      errorMsg.classList.add('visible');
+    } finally {
+      loadIdbBtn.disabled = false;
+    }
+  });
+
+  btnComplete.addEventListener('click', async () => {
+    if (!completer || busy) return;
+    const prefix = codeInput.value;
+    if (!prefix.trim()) return;
+
+    busy = true;
+    btnComplete.disabled = true;
+    btnCompleteLine.disabled = true;
+    outputText.className = 'streaming';
+    outputText.textContent = '';
+    outputMeta.textContent = '';
+
+    const opts = {
+      maxNewTokens: parseInt(maxTokensInput.value, 10),
+      temperature: parseFloat(tempInput.value),
+    };
+
+    const t0 = Date.now();
+    let tokenCount = 0;
+    try {
+      for await (const token of completer.completeStream(prefix, opts)) {
+        outputText.textContent += token;
+        tokenCount++;
+      }
+      outputMeta.textContent = `${tokenCount} tokens · ${((Date.now() - t0) / 1000).toFixed(1)}s`;
+      outputText.className = '';
+    } catch (err) {
+      outputText.textContent = `Error: ${err.message}`;
+      outputText.className = '';
+    } finally {
+      busy = false;
+      btnComplete.disabled = false;
+      btnCompleteLine.disabled = false;
+    }
+  });
+
+  btnCompleteLine.addEventListener('click', async () => {
+    if (!completer || busy) return;
+    const prefix = codeInput.value;
+    if (!prefix.trim()) return;
+
+    busy = true;
+    btnComplete.disabled = true;
+    btnCompleteLine.disabled = true;
+    outputText.className = 'streaming';
+    outputText.textContent = 'Completing line…';
+    outputMeta.textContent = '';
+
+    const t0 = Date.now();
+    try {
+      const result = await completer.completeLine(prefix);
+      const completion = result.slice(prefix.length);
+      outputText.textContent = completion || '(no continuation)';
+      outputText.className = '';
+      outputMeta.textContent = `Single-line completion · ${Date.now() - t0}ms`;
+      codeInput.value = result;
+    } catch (err) {
+      outputText.textContent = `Error: ${err.message}`;
+      outputText.className = '';
+    } finally {
+      busy = false;
+      btnComplete.disabled = false;
+      btnCompleteLine.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

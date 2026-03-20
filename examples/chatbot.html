@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MambaKit — Chatbot Example</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 14px 20px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1rem; font-weight: 600; }
+    .badge { font-size: 0.7rem; background: #7c3aed; color: #fff; padding: 2px 8px; border-radius: 999px; }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #6b7280; margin-left: auto; transition: background 0.3s;
+    }
+    #status-dot.ready   { background: #22c55e; }
+    #status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+    #status-dot.error   { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+    #setup { padding: 16px 20px; background: #1a1d27; border-bottom: 1px solid #2d3148; }
+    .setup-row { display: flex; align-items: center; gap: 10px; }
+    .setup-row label { font-size: 0.8rem; color: #94a3b8; white-space: nowrap; }
+    .setup-row input {
+      flex: 1; background: #0f1117; border: 1px solid #2d3148; border-radius: 6px;
+      padding: 7px 10px; color: #e2e8f0; font-size: 0.82rem;
+    }
+    .setup-row input:focus { outline: none; border-color: #7c3aed; }
+    #load-btn {
+      padding: 8px 20px; background: #7c3aed; color: #fff; border: none;
+      border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    #load-btn:hover:not(:disabled) { background: #6d28d9; }
+    #load-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    details { margin-top: 10px; }
+    summary { font-size: 0.75rem; color: #64748b; cursor: pointer; user-select: none; }
+    summary:hover { color: #94a3b8; }
+    .adv-field { margin-top: 8px; }
+    .adv-field label { display: block; font-size: 0.72rem; color: #64748b; margin-bottom: 3px; }
+    .adv-field input {
+      width: 100%; background: #0f1117; border: 1px solid #2d3148; border-radius: 5px;
+      padding: 6px 9px; color: #e2e8f0; font-size: 0.8rem;
+    }
+    .adv-field input:focus { outline: none; border-color: #7c3aed; }
+
+    #progress-wrap { margin-top: 10px; display: none; }
+    #progress-wrap.visible { display: block; }
+    #progress-bar-bg { height: 3px; background: #2d3148; border-radius: 2px; }
+    #progress-bar { height: 100%; background: #7c3aed; border-radius: 2px; width: 0; transition: width 0.2s; }
+    #progress-label { font-size: 0.72rem; color: #64748b; margin-top: 4px; }
+
+    #error-msg {
+      background: #2d1515; border: 1px solid #7f1d1d; color: #fca5a5;
+      border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 8px; display: none;
+    }
+    #error-msg.visible { display: block; }
+    #random-weights-warning {
+      background: #1c1a07; border: 1px solid #854d0e; color: #fbbf24;
+      border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 8px; display: none;
+    }
+    #random-weights-warning.visible { display: block; }
+
+    #chat-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #messages {
+      flex: 1; overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .msg { display: flex; gap: 10px; max-width: 720px; }
+    .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700;
+    }
+    .msg.user .avatar      { background: #7c3aed; color: #fff; }
+    .msg.assistant .avatar { background: #1e293b; color: #94a3b8; border: 1px solid #2d3148; }
+    .bubble {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px;
+      padding: 10px 14px; font-size: 0.9rem; line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .msg.user .bubble { background: #3b1f8c; border-color: #5b21b6; }
+    .typing-indicator span {
+      display: inline-block; width: 6px; height: 6px; background: #64748b;
+      border-radius: 50%; margin: 0 1px; animation: bounce 1.2s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)} }
+
+    #input-bar {
+      padding: 14px 20px; background: #1a1d27; border-top: 1px solid #2d3148;
+      display: flex; gap: 10px;
+    }
+    #user-input {
+      flex: 1; background: #0f1117; border: 1px solid #2d3148; border-radius: 8px;
+      padding: 10px 14px; color: #e2e8f0; font-size: 0.9rem; font-family: inherit;
+      resize: none; height: 44px; line-height: 1.4;
+    }
+    #user-input:focus { outline: none; border-color: #7c3aed; }
+    #send-btn {
+      padding: 0 18px; background: #7c3aed; color: #fff; border: none;
+      border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+    }
+    #send-btn:hover:not(:disabled) { background: #6d28d9; }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #clear-btn {
+      padding: 0 14px; background: transparent; color: #64748b;
+      border: 1px solid #2d3148; border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+    }
+    #clear-btn:hover { color: #e2e8f0; border-color: #475569; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>MambaKit Chatbot</h1>
+  <span class="badge">Example</span>
+  <div id="status-dot"></div>
+</header>
+
+<div id="setup">
+  <div class="setup-row">
+    <label>System prompt</label>
+    <input id="system-prompt" type="text" value="You are a helpful assistant." />
+    <button id="load-btn">Load Model</button>
+  </div>
+  <details>
+    <summary>Advanced — load weights</summary>
+    <div class="adv-field">
+      <label>Checkpoint URL (.bin) — provide a hosted model file</label>
+      <input id="checkpoint-url" type="url" placeholder="https://example.com/model.bin" />
+    </div>
+    <div class="adv-field" style="margin-top:6px;">
+      <button id="load-idb-btn" style="width:100%;padding:6px;background:#1e293b;color:#94a3b8;border:1px solid #2d3148;border-radius:5px;font-size:0.78rem;font-weight:600;cursor:pointer;">Load from browser storage</button>
+      <div style="font-size:0.7rem;color:#475569;margin-top:3px;">Use weights saved from the Knowledge Base example.</div>
+    </div>
+  </details>
+  <div id="error-msg"></div>
+  <div id="random-weights-warning"></div>
+  <div id="progress-wrap">
+    <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+    <div id="progress-label">Initialising…</div>
+  </div>
+</div>
+
+<div id="chat-wrap">
+  <div id="messages">
+    <div class="msg assistant">
+      <div class="avatar">M</div>
+      <div class="bubble">Click <strong>Load Model</strong> above to start chatting.</div>
+    </div>
+  </div>
+  <div id="input-bar">
+    <textarea id="user-input" placeholder="Type a message… (Enter to send)" disabled></textarea>
+    <button id="clear-btn">Clear</button>
+    <button id="send-btn" disabled>Send</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "mambacode.js": "/node_modules/mambacode.js/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { MambaSession } from '../dist/kit/index.js';
+  import { MambaChatbot } from '../dist/examples/chatbot.js';
+
+  const loadBtn       = document.getElementById('load-btn');
+  const sendBtn       = document.getElementById('send-btn');
+  const clearBtn      = document.getElementById('clear-btn');
+  const userInput     = document.getElementById('user-input');
+  const messagesEl    = document.getElementById('messages');
+  const statusDot     = document.getElementById('status-dot');
+  const progressWrap  = document.getElementById('progress-wrap');
+  const progressBar   = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const errorMsg      = document.getElementById('error-msg');
+  const randomWeightsWarning = document.getElementById('random-weights-warning');
+  const loadIdbBtn    = document.getElementById('load-idb-btn');
+
+  let chatbot = null;
+  let generating = false;
+
+  const STAGE_OFFSETS = { gpu: 0, tokenizer: 25, model: 50, weights: 75 };
+
+  loadBtn.addEventListener('click', async () => {
+    const checkpointUrl = document.getElementById('checkpoint-url').value.trim();
+
+    errorMsg.classList.remove('visible');
+    randomWeightsWarning.classList.remove('visible');
+    loadBtn.disabled = true;
+    statusDot.className = 'loading';
+    progressWrap.classList.add('visible');
+    progressBar.style.width = '0%';
+
+    try {
+      const session = await MambaSession.create(
+        { ...(checkpointUrl ? { checkpointUrl } : {}) },
+        {
+          onProgress({ stage, progress, message }) {
+            const base = STAGE_OFFSETS[stage] ?? 0;
+            progressBar.style.width = `${base + progress * 25}%`;
+            progressLabel.textContent = message;
+          },
+        },
+      );
+
+      const systemPrompt = document.getElementById('system-prompt').value.trim();
+      chatbot = new MambaChatbot(session, systemPrompt || 'You are a helpful assistant.');
+
+      progressBar.style.width = '100%';
+      progressLabel.textContent = 'Ready';
+      statusDot.className = 'ready';
+      if (!checkpointUrl) {
+        randomWeightsWarning.textContent = '⚠ No weights loaded — responses will be random. Train a model in the Knowledge Base example, save it, then click "Load from browser storage" above.';
+        randomWeightsWarning.classList.add('visible');
+      }
+      userInput.disabled = false;
+      sendBtn.disabled = false;
+      messagesEl.innerHTML = '';
+      appendMessage('assistant', 'Model loaded. How can I help you?');
+      userInput.focus();
+    } catch (err) {
+      statusDot.className = 'error';
+      errorMsg.textContent = err.message ?? String(err);
+      errorMsg.classList.add('visible');
+      loadBtn.disabled = false;
+    }
+  });
+
+  async function sendMessage() {
+    if (!chatbot || generating) return;
+    const text = userInput.value.trim();
+    if (!text) return;
+
+    userInput.value = '';
+    generating = true;
+    sendBtn.disabled = true;
+    appendMessage('user', text);
+    const typingEl = appendTyping();
+
+    let assistantEl = null;
+    let fullText = '';
+    try {
+      for await (const token of chatbot.chatStream(text)) {
+        if (!assistantEl) {
+          typingEl.remove();
+          assistantEl = appendMessage('assistant', '');
+        }
+        fullText += token;
+        assistantEl.querySelector('.bubble').textContent = fullText;
+        scrollToBottom();
+      }
+    } catch (err) {
+      typingEl.remove();
+      appendMessage('assistant', `Error: ${err.message}`);
+    } finally {
+      generating = false;
+      sendBtn.disabled = false;
+      userInput.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  userInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  loadIdbBtn.addEventListener('click', async () => {
+    errorMsg.classList.remove('visible');
+    randomWeightsWarning.classList.remove('visible');
+    loadIdbBtn.disabled = true;
+    statusDot.className = 'loading';
+    progressWrap.classList.add('visible');
+    progressBar.style.width = '0%';
+    progressLabel.textContent = 'Loading from browser storage…';
+    try {
+      const session = await MambaSession.create({}, {
+        onProgress({ stage, progress, message }) {
+          const base = STAGE_OFFSETS[stage] ?? 0;
+          progressBar.style.width = `${base + progress * 25}%`;
+          progressLabel.textContent = message;
+        },
+      });
+      const loaded = await session.load({ storage: 'indexedDB', key: 'mambakit-default' });
+      if (!loaded) {
+        throw new Error('No saved model found. Train one in the Knowledge Base example first.');
+      }
+      const systemPrompt = document.getElementById('system-prompt').value.trim();
+      chatbot = new MambaChatbot(session, systemPrompt || 'You are a helpful assistant.');
+      progressBar.style.width = '100%';
+      progressLabel.textContent = 'Ready';
+      statusDot.className = 'ready';
+      userInput.disabled = false;
+      sendBtn.disabled = false;
+      messagesEl.innerHTML = '';
+      appendMessage('assistant', 'Saved model loaded. How can I help you?');
+      userInput.focus();
+    } catch (err) {
+      statusDot.className = 'error';
+      errorMsg.textContent = err.message ?? String(err);
+      errorMsg.classList.add('visible');
+    } finally {
+      loadIdbBtn.disabled = false;
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (!chatbot) return;
+    chatbot.clearHistory();
+    messagesEl.innerHTML = '';
+    appendMessage('assistant', 'Conversation cleared.');
+  });
+
+  function appendMessage(role, text) {
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    div.innerHTML = `<div class="avatar">${role === 'user' ? 'U' : 'M'}</div>
+      <div class="bubble">${escapeHtml(text)}</div>`;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function appendTyping() {
+    const div = document.createElement('div');
+    div.className = 'msg assistant';
+    div.innerHTML = `<div class="avatar">M</div>
+      <div class="bubble typing-indicator"><span></span><span></span><span></span></div>`;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

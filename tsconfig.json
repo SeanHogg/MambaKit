@@ -14,6 +14,6 @@
     "sourceMap": true,
     "typeRoots": ["./node_modules/@types", "./node_modules/@webgpu", "./types"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "types/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
 }

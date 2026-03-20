@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MambaKit — Knowledge Base Example</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 14px 20px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1rem; font-weight: 600; }
+    .badge { font-size: 0.7rem; background: #059669; color: #fff; padding: 2px 8px; border-radius: 999px; }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #6b7280; margin-left: auto; transition: background 0.3s;
+    }
+    #status-dot.ready   { background: #22c55e; }
+    #status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+    #status-dot.error   { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+    #app { flex: 1; display: grid; grid-template-columns: 340px 1fr; overflow: hidden; }
+
+    /* ── Left panel ── */
+    #left-panel {
+      background: #1a1d27;
+      border-right: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Setup ── */
+    #setup { padding: 16px; border-bottom: 1px solid #2d3148; }
+    #setup h2 { font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+
+    #load-btn {
+      width: 100%;
+      padding: 8px;
+      background: #059669;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #load-btn:hover:not(:disabled) { background: #10b981; }
+    #load-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    details { margin-top: 10px; }
+    details summary { font-size: 0.72rem; color: #475569; cursor: pointer; user-select: none; }
+    details summary:hover { color: #94a3b8; }
+    .adv-field { margin-top: 8px; }
+    .adv-field label { display: block; font-size: 0.72rem; color: #475569; margin-bottom: 3px; }
+    .adv-field input {
+      width: 100%; background: #0f1117; border: 1px solid #2d3148;
+      border-radius: 5px; padding: 6px 9px; color: #e2e8f0; font-size: 0.78rem;
+    }
+    .adv-field input:focus { outline: none; border-color: #059669; }
+
+    #progress-wrap { display: none; margin-top: 8px; }
+    #progress-wrap.visible { display: block; }
+    #progress-bar-bg { height: 3px; background: #2d3148; border-radius: 2px; }
+    #progress-bar { height: 100%; background: #059669; border-radius: 2px; width: 0; transition: width 0.2s; }
+    #progress-label { font-size: 0.7rem; color: #64748b; margin-top: 3px; }
+
+    #error-msg {
+      background: #2d1515; border: 1px solid #7f1d1d; color: #fca5a5;
+      border-radius: 5px; padding: 7px 9px; font-size: 0.78rem; margin-top: 8px; display: none;
+    }
+    #error-msg.visible { display: block; }
+    #random-weights-warning {
+      background: #1c1a07; border: 1px solid #854d0e; color: #fbbf24;
+      border-radius: 5px; padding: 7px 9px; font-size: 0.78rem; margin-top: 8px; display: none;
+    }
+    #random-weights-warning.visible { display: block; }
+
+    #save-row { display: flex; gap: 6px; margin-top: 8px; }
+    #save-idb-btn, #save-dl-btn {
+      flex: 1; padding: 6px; border: 1px solid #2d3148; border-radius: 5px;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer; background: #1e293b; color: #94a3b8;
+    }
+    #save-idb-btn:hover:not(:disabled), #save-dl-btn:hover:not(:disabled) { color: #e2e8f0; border-color: #475569; }
+    #save-idb-btn:disabled, #save-dl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #save-status { font-size: 0.72rem; color: #64748b; margin-top: 4px; }
+
+    /* ── Ingest form ── */
+    #ingest-form { padding: 16px; border-bottom: 1px solid #2d3148; }
+    #ingest-form h2 { font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+    #ingest-form label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+    #ingest-form input[type=text] {
+      width: 100%; background: #0f1117; border: 1px solid #2d3148;
+      border-radius: 6px; padding: 7px 10px; color: #e2e8f0; font-size: 0.82rem;
+    }
+    #ingest-form input[type=text]:focus { outline: none; border-color: #059669; }
+    #doc-content {
+      width: 100%; background: #0f1117; border: 1px solid #2d3148; border-radius: 6px;
+      padding: 7px 10px; color: #e2e8f0; font-size: 0.82rem; font-family: inherit;
+      resize: vertical; min-height: 90px; margin-top: 8px;
+    }
+    #doc-content:focus { outline: none; border-color: #059669; }
+    #ingest-defaults-btn {
+      width: 100%; padding: 9px;
+      background: #059669; color: #fff; border: none;
+      border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+    }
+    #ingest-defaults-btn:hover:not(:disabled) { background: #10b981; }
+    #ingest-defaults-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #ingest-defaults-hint { font-size: 0.72rem; color: #475569; margin-top: 5px; }
+
+    .ingest-form-divider { text-align: center; font-size: 0.72rem; color: #334155; margin: 10px 0; }
+
+    #ingest-btn {
+      width: 100%; margin-top: 10px; padding: 8px;
+      background: #1e293b; color: #e2e8f0; border: 1px solid #2d3148;
+      border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    #ingest-btn:hover:not(:disabled) { background: #334155; }
+    #ingest-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .spinner {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid #2d3148; border-top-color: #059669;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Doc list ── */
+    #doc-list-wrap { flex: 1; overflow-y: auto; padding: 16px; }
+    #doc-list-wrap h2 { font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+    #doc-count { color: #22c55e; margin-left: 6px; }
+    .doc-card {
+      background: #0f1117; border: 1px solid #2d3148; border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 8px; font-size: 0.8rem;
+    }
+    .doc-id { font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
+    .doc-meta { color: #94a3b8; font-size: 0.74rem; }
+    .perp-change { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+    .perp-before { color: #f59e0b; }
+    .perp-after  { color: #22c55e; }
+    .perp-arrow  { color: #64748b; }
+    .improved    { color: #22c55e; font-size: 0.72rem; }
+    .worsened    { color: #f87171; font-size: 0.72rem; }
+
+    /* ── Right panel ── */
+    #right-panel { display: flex; flex-direction: column; overflow: hidden; }
+
+    #query-section { flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 14px; overflow: hidden; }
+    #query-section h2 { font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    #query-hint {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 8px;
+      padding: 12px 14px; font-size: 0.82rem; color: #64748b; line-height: 1.5;
+    }
+    #query-input-wrap { display: flex; gap: 8px; }
+    #query-input {
+      flex: 1; background: #1a1d27; border: 1px solid #2d3148; border-radius: 8px;
+      padding: 10px 14px; color: #e2e8f0; font-size: 0.9rem; font-family: inherit;
+    }
+    #query-input:focus { outline: none; border-color: #059669; }
+    #query-btn {
+      padding: 10px 20px; background: #059669; color: #fff; border: none;
+      border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+    }
+    #query-btn:hover:not(:disabled) { background: #10b981; }
+    #query-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #answer-wrap {
+      flex: 1; background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px;
+      padding: 16px; overflow-y: auto;
+    }
+    #answer-wrap h3 { font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+    #answer-text {
+      font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap;
+      word-break: break-word; color: #e2e8f0; min-height: 60px;
+    }
+    #answer-text.placeholder { color: #475569; }
+    #answer-text.loading     { color: #86efac; }
+
+    #stats-bar {
+      padding: 10px 24px; background: #1a1d27; border-top: 1px solid #2d3148;
+      display: flex; gap: 24px; font-size: 0.76rem; color: #94a3b8;
+    }
+    .stat-val { font-weight: 700; color: #22c55e; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>MambaKit Knowledge Base</h1>
+  <span class="badge">Example</span>
+  <div id="status-dot"></div>
+</header>
+
+<div id="app">
+  <div id="left-panel">
+
+    <div id="setup">
+      <h2>Model</h2>
+      <button id="load-btn">Load Model</button>
+
+      <details>
+        <summary>Advanced — bring your own checkpoint</summary>
+        <div class="adv-field">
+          <label>Checkpoint URL (.bin) — leave blank for random weights</label>
+          <input id="checkpoint-url" type="url" placeholder="https://example.com/model.bin" />
+        </div>
+      </details>
+
+      <div id="error-msg"></div>
+      <div id="random-weights-warning"></div>
+      <div id="save-row">
+        <button id="save-idb-btn" disabled title="Save to browser storage — load it later in Chatbot or Code Completion">Save to browser</button>
+        <button id="save-dl-btn" disabled title="Download as a .bin file">Download .bin</button>
+      </div>
+      <div id="save-status"></div>
+      <div id="progress-wrap">
+        <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+        <div id="progress-label">Initialising…</div>
+      </div>
+    </div>
+
+    <div id="ingest-form">
+      <h2>Ingest Document</h2>
+      <button id="ingest-defaults-btn" disabled>Ingest Sample Documents</button>
+      <div id="ingest-defaults-hint">Loads 3 built-in MambaKit documents — no setup needed.</div>
+      <div class="ingest-form-divider">— or add your own —</div>
+      <label for="doc-id">Document ID</label>
+      <input id="doc-id" type="text" placeholder="e.g. readme, api-docs, blog-post" disabled />
+      <textarea id="doc-content" placeholder="Paste the text to fine-tune into the model…" disabled></textarea>
+      <button id="ingest-btn" disabled>Ingest</button>
+    </div>
+
+    <div id="doc-list-wrap">
+      <h2>Ingested Documents <span id="doc-count">0</span></h2>
+      <div id="doc-list"></div>
+    </div>
+  </div>
+
+  <div id="right-panel">
+    <div id="query-section">
+      <h2>Query</h2>
+      <div id="query-hint">
+        Ingest one or more documents on the left, then ask questions here.
+        The model's weights are updated in-browser via WSLA — no server required.
+      </div>
+      <div id="query-input-wrap">
+        <input id="query-input" placeholder="Ask a question about your ingested documents…" disabled />
+        <button id="query-btn" disabled>Ask</button>
+      </div>
+      <div id="answer-wrap">
+        <h3>Answer</h3>
+        <div id="answer-text" class="placeholder">Answers will appear here after you ingest documents and ask a question.</div>
+      </div>
+    </div>
+    <div id="stats-bar">
+      <div>Documents ingested: <span class="stat-val" id="stat-docs">0</span></div>
+      <div>Total ingest time: <span class="stat-val" id="stat-time">—</span></div>
+      <div>Last perplexity: <span class="stat-val" id="stat-perp">—</span></div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "mambacode.js": "/node_modules/mambacode.js/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+  import { MambaSession } from '../dist/kit/index.js';
+  import { MambaKnowledgeBase } from '../dist/examples/knowledge-base.js';
+
+  const loadBtn           = document.getElementById('load-btn');
+  const ingestDefaultsBtn = document.getElementById('ingest-defaults-btn');
+  const ingestBtn         = document.getElementById('ingest-btn');
+  const queryBtn    = document.getElementById('query-btn');
+  const queryInput  = document.getElementById('query-input');
+  const docIdInput  = document.getElementById('doc-id');
+  const docContent  = document.getElementById('doc-content');
+  const answerText  = document.getElementById('answer-text');
+  const docList     = document.getElementById('doc-list');
+  const docCount    = document.getElementById('doc-count');
+  const statusDot   = document.getElementById('status-dot');
+  const progressWrap  = document.getElementById('progress-wrap');
+  const progressBar   = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const errorMsg    = document.getElementById('error-msg');
+  const randomWeightsWarning = document.getElementById('random-weights-warning');
+  const saveIdbBtn  = document.getElementById('save-idb-btn');
+  const saveDlBtn   = document.getElementById('save-dl-btn');
+  const saveStatus  = document.getElementById('save-status');
+  const statDocs    = document.getElementById('stat-docs');
+  const statTime    = document.getElementById('stat-time');
+  const statPerp    = document.getElementById('stat-perp');
+
+  let kb = null;
+  let session = null;
+  let totalIngestMs = 0;
+
+  const STAGE_OFFSETS = { gpu: 0, tokenizer: 25, model: 50, weights: 75 };
+
+  // ── Load model ──────────────────────────────────────────────────────────────
+  loadBtn.addEventListener('click', async () => {
+    const checkpointUrl = document.getElementById('checkpoint-url').value.trim();
+
+    errorMsg.classList.remove('visible');
+    randomWeightsWarning.classList.remove('visible');
+    loadBtn.disabled = true;
+    statusDot.className = 'loading';
+    progressWrap.classList.add('visible');
+    progressBar.style.width = '0%';
+
+    try {
+      session = await MambaSession.create(
+        { ...(checkpointUrl ? { checkpointUrl } : {}) },
+        {
+          onProgress({ stage, progress, message }) {
+            const base = STAGE_OFFSETS[stage] ?? 0;
+            progressBar.style.width = `${base + progress * 25}%`;
+            progressLabel.textContent = message;
+          },
+        },
+      );
+      kb = new MambaKnowledgeBase(session);
+      progressBar.style.width = '100%';
+      progressLabel.textContent = 'Ready';
+      statusDot.className = 'ready';
+      ingestDefaultsBtn.disabled = false;
+      ingestBtn.disabled = false;
+      queryBtn.disabled = false;
+      queryInput.disabled = false;
+      docIdInput.disabled = false;
+      docContent.disabled = false;
+      saveIdbBtn.disabled = false;
+      saveDlBtn.disabled = false;
+    } catch (err) {
+      statusDot.className = 'error';
+      errorMsg.textContent = err.message ?? String(err);
+      errorMsg.classList.add('visible');
+      loadBtn.disabled = false;
+    }
+  });
+
+  // ── Sample documents ─────────────────────────────────────────────────────────
+  const SAMPLE_DOCS = [
+    {
+      id: 'mambakit-overview',
+      content: `MambaKit is an opinionated, browser-native AI toolkit built on top of MambaCode.js.
+It collapses eight steps of GPU setup, tokenisation, model construction, and weight management into a single MambaSession.create() call.
+
+MambaKit uses the Qwen2.5-Coder tokenizer by default, which supports 151,000 tokens and is optimised for code and natural language.
+
+The session object exposes four capabilities:
+- complete(prompt) — generate a text continuation from a prompt.
+- completeStream(prompt) — stream tokens one at a time for real-time UIs.
+- adapt(text) — fine-tune the model on new text using WSLA fast-adapt.
+- evaluate(text) — measure the model's perplexity on text (lower is better).
+
+Weights can be saved to browser IndexedDB with session.save(), downloaded as a .bin file, or loaded from either source with session.load().`,
+    },
+    {
+      id: 'mambakit-examples',
+      content: `MambaKit ships with three browser examples that demonstrate different workflows.
+
+The Knowledge Base example is the starting point. It does not require a pre-trained checkpoint.
+Load the model, then click "Ingest Sample Documents" to fine-tune on built-in content using WSLA.
+After ingestion you can ask questions and get answers generated by the adapted model.
+Save the trained weights to browser storage with "Save to browser", then open the other examples.
+
+The Chatbot example provides a multi-turn conversation UI with streaming token output.
+It requires trained weights. After saving from Knowledge Base, open Chatbot, expand Advanced, and click "Load from browser storage".
+
+The Code Completion example provides an editor with two modes: streaming multi-token continuation and single-line completion.
+It also requires trained weights loaded the same way as Chatbot.`,
+    },
+    {
+      id: 'mambakit-wsla',
+      content: `WSLA stands for Weight-Space Learning Adaptation. It is a fast fine-tuning algorithm built into MambaCode.js.
+
+Unlike full backpropagation, WSLA updates only a small subset of weight directions per step, making it practical to run in the browser on consumer hardware with WebGPU.
+
+When you call session.adapt(text), WSLA runs three epochs by default and returns the per-epoch loss values.
+A decreasing loss curve means the model is learning the content.
+Perplexity before and after ingestion is shown in the Knowledge Base UI so you can see the model improving.
+
+WSLA is not a replacement for large-scale pretraining. It is designed to quickly specialise an existing model on a narrow domain such as your private documentation, codebase, or product knowledge.`,
+    },
+  ];
+
+  // ── Ingest defaults ──────────────────────────────────────────────────────────
+  ingestDefaultsBtn.addEventListener('click', async () => {
+    if (!kb) return;
+    ingestDefaultsBtn.disabled = true;
+    ingestDefaultsBtn.textContent = 'Ingesting…';
+    for (const doc of SAMPLE_DOCS) {
+      await runIngest(doc.id, doc.content);
+    }
+    ingestDefaultsBtn.textContent = 'Ingest Sample Documents';
+    ingestDefaultsBtn.disabled = false;
+  });
+
+  // ── Shared ingest logic ──────────────────────────────────────────────────────
+  async function runIngest(id, content) {
+    if (!kb) return;
+    const t0 = Date.now();
+    progressWrap.classList.add('visible');
+    progressLabel.textContent = `Ingesting "${id}"…`;
+    progressBar.style.width = '0%';
+    const result = await kb.ingest({ id, content }, {
+      wsla: true, epochs: 3,
+      onProgress: (epoch, loss) => {
+        progressLabel.textContent = `"${id}" · epoch ${epoch} · loss ${loss.toFixed(4)}`;
+        progressBar.style.width = `${(epoch / 3) * 100}%`;
+      },
+    });
+    const elapsed = Date.now() - t0;
+    totalIngestMs += elapsed;
+    addDocCard(result, elapsed);
+    docCount.textContent = kb.documentCount;
+    statDocs.textContent = kb.documentCount;
+    statTime.textContent = `${(totalIngestMs / 1000).toFixed(1)}s`;
+    statPerp.textContent = result.perplexityAfter.toFixed(2);
+    progressLabel.textContent = 'Ready';
+    progressBar.style.width = '100%';
+  }
+
+  // ── Ingest ──────────────────────────────────────────────────────────────────
+  ingestBtn.addEventListener('click', async () => {
+    if (!kb) return;
+    const id      = docIdInput.value.trim();
+    const content = docContent.value.trim();
+    if (!id || !content) return;
+
+    ingestBtn.disabled = true;
+    ingestBtn.innerHTML = '<span class="spinner"></span> Ingesting…';
+
+    try {
+      await runIngest(id, content);
+      docIdInput.value = '';
+      docContent.value = '';
+    } catch (err) {
+      progressLabel.textContent = `Error: ${err.message}`;
+    } finally {
+      ingestBtn.disabled = false;
+      ingestBtn.textContent = 'Ingest';
+    }
+  });
+
+  // ── Query ───────────────────────────────────────────────────────────────────
+  async function runQuery() {
+    if (!kb) return;
+    const question = queryInput.value.trim();
+    if (!question) return;
+
+    queryBtn.disabled = true;
+    answerText.textContent = 'Generating…';
+    answerText.className = 'loading';
+
+    try {
+      const answer = await kb.query(question, { maxNewTokens: 300, temperature: 0.5 });
+      answerText.textContent = answer;
+      answerText.className = '';
+    } catch (err) {
+      answerText.textContent = `Error: ${err.message}`;
+      answerText.className = '';
+    } finally {
+      queryBtn.disabled = false;
+    }
+  }
+
+  queryBtn.addEventListener('click', runQuery);
+  queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') runQuery(); });
+
+  // ── Save weights ─────────────────────────────────────────────────────────────
+  saveIdbBtn.addEventListener('click', async () => {
+    if (!kb) return;
+    saveIdbBtn.disabled = true;
+    saveDlBtn.disabled = true;
+    saveStatus.textContent = 'Saving…';
+    try {
+      await session.save({ storage: 'indexedDB', key: 'mambakit-default' });
+      saveStatus.textContent = '✓ Saved to browser storage. Open Chatbot or Code Completion and click "Load from browser".';
+    } catch (err) {
+      saveStatus.textContent = `Error: ${err.message}`;
+    } finally {
+      saveIdbBtn.disabled = false;
+      saveDlBtn.disabled = false;
+    }
+  });
+
+  saveDlBtn.addEventListener('click', async () => {
+    if (!kb) return;
+    saveIdbBtn.disabled = true;
+    saveDlBtn.disabled = true;
+    saveStatus.textContent = 'Preparing download…';
+    try {
+      await session.save({ storage: 'download', filename: 'mambakit-model.bin' });
+      saveStatus.textContent = '✓ Downloaded. Load the .bin file via Advanced in Chatbot or Code Completion.';
+    } catch (err) {
+      saveStatus.textContent = `Error: ${err.message}`;
+    } finally {
+      saveIdbBtn.disabled = false;
+      saveDlBtn.disabled = false;
+    }
+  });
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function addDocCard(result, elapsedMs) {
+    const card = document.createElement('div');
+    card.className = 'doc-card';
+    card.innerHTML = `
+      <div class="doc-id">${escapeHtml(result.id)}</div>
+      <div class="doc-meta">${result.epochCount} epochs · ${(elapsedMs / 1000).toFixed(1)}s</div>
+      <div class="perp-change">
+        <span class="perp-before">${result.perplexityBefore.toFixed(2)}</span>
+        <span class="perp-arrow">→</span>
+        <span class="perp-after">${result.perplexityAfter.toFixed(2)}</span>
+        <span class="${result.improved ? 'improved' : 'worsened'}">${result.improved ? '▼ improved' : '▲ worsened'}</span>
+      </div>`;
+    docList.prepend(card);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

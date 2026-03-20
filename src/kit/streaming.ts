@@ -5,7 +5,7 @@
  * token is yielded immediately after sampling, enabling real-time streaming UIs.
  */
 
-import type { MambaModel, SamplingOptions } from 'mambacode.js';
+import type { HybridMambaModel, SamplingOptions } from 'mambacode.js';
 
 /** Minimum effective temperature — avoids division by zero in sampling. */
 const MIN_TEMPERATURE = 1e-7;
@@ -15,7 +15,7 @@ const MIN_TEMPERATURE = 1e-7;
  * `MambaModel.generate()` but yielding each step incrementally.
  */
 export async function* tokenStream(
-    model: MambaModel,
+    model: HybridMambaModel,
     promptIds: number[],
     maxNewTokens: number,
     samplingOpts: SamplingOptions = {},
