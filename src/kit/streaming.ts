@@ -23,7 +23,7 @@ export async function* tokenStream(
     const { temperature = 1.0, topK = 50, topP = 0.9 } = samplingOpts;
     const { vocabSize, eosId } = model.config;
 
-    let ids = [...promptIds];
+    const ids = [...promptIds];
 
     for (let step = 0; step < maxNewTokens; step++) {
         const { logits } = await model.forward(
