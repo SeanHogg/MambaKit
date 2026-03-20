@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "lib": ["ES2022", "DOM"],
     "outDir": "dist",
     "rootDir": "src",
@@ -12,7 +12,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["@webgpu/types"]
+    "typeRoots": ["./node_modules/@types", "./node_modules/@webgpu", "./types"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
