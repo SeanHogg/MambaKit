@@ -56,12 +56,13 @@
   },
   "publishConfig": {
     "access": "public",
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org"
   },
-  "dependencies": {
-    "@seanhogg/mambacode.js": "file:../mambacodejs/seanhogg-mambacode.js-1.0.2.tgz"
+  "peerDependencies": {
+    "@seanhogg/mambacode.js": "^1.0.2"
   },
   "devDependencies": {
+    "@seanhogg/mambacode.js": "file:../mambacodejs/seanhogg-mambacode.js-1.0.2.tgz",
     "@types/jest": "^29.5.0",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",

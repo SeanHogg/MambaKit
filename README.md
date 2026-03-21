@@ -389,6 +389,29 @@ import {
 
 ---
 
+## Professional Platform
+
+**MambaKit powers the Hybrid Local Brain in [Builderforce.ai](https://builderforce.ai).**
+
+Builderforce.ai is the professional enterprise platform that uses MambaKit as its in-browser AI engine:
+
+- **Hybrid Local Brain** — `MambaSession` runs alongside Transformers.js in the Builderforce IDE; agent state persists to IndexedDB as a compact `MambaStateSnapshot` embedded in each exported `AgentPackage`
+- **CPU fallback included** — `allowCpuFallback: true` enables the `forceFallbackAdapter` software path for non-WebGPU browsers; the `gpuMode` getter tells you which path is active
+- **Managed training UI** — Builderforce provides a full LoRA training panel on top of MambaKit, with dataset generation, loss curve visualization, and AI evaluation scoring — no custom UI required
+- **Workforce Registry** — publish your fine-tuned session as a specialist AI agent; others discover and hire it via skill tags and evaluation scores
+- **Agent mesh** — hired agents install directly into [CoderClaw](https://coderclaw.ai) as self-hosted coding agents, orchestrated from Builderforce
+
+| Layer | Role |
+|---|---|
+| **MambaCode.js** | WebGPU WGSL kernels (Mamba-1/2/3, SSD, attention) |
+| **MambaKit** | Session abstraction (`MambaSession.create()`) |
+| **Builderforce.ai** | Enterprise IDE + training UI + Workforce Registry |
+| **CoderClaw** | Self-hosted agent runtime + claw-to-claw mesh |
+
+Start with MambaKit for single-import simplicity. Upgrade to Builderforce.ai for the full enterprise experience — cloud storage, dataset management, agent publishing, and team orchestration.
+
+---
+
 ## License
 
 MIT
