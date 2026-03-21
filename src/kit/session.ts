@@ -13,7 +13,7 @@ import {
     type HybridMambaModelConfig,
     type LayerSpec,
     type LayerType,
-} from 'mambacode.js';
+} from '@seanhogg/mambacode.js';
 
 import { MambaKitError } from './errors.js';
 

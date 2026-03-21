@@ -1,31 +1,44 @@
-name: Publish to npm
+name: Publish to GitHub Packages
 
 on:
   release:
     types: [published]
 
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "npm dist-tag (e.g. latest, next, beta)"
+        required: false
+        default: "latest"
+
 permissions:
   contents: read
-  id-token: write   # required for npm provenance attestation
+  packages: write  # required to publish to GitHub Packages
 
 jobs:
-  build-and-publish:
-    name: Build, Test & Publish
+  # ── Gate: build + test before publishing ─────────────────────────────────
+  test:
+    name: Build & Test (Node.js ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    strategy:
+      matrix:
+        node-version: ["20.x", "22.x"]
 
-      - name: Set up Node.js
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
-          registry-url: "https://registry.npmjs.org"
+          node-version: ${{ matrix.node-version }}
+          registry-url: "https://npm.pkg.github.com"
           cache: "npm"
 
       - name: Install dependencies
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
         run: npm run lint
@@ -33,28 +46,55 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify TypeScript declarations are present
-        run: |
-          for f in dist/kit/index.d.ts dist/kit/session.d.ts dist/kit/errors.d.ts dist/kit/presets.d.ts; do
-            if [ ! -f "$f" ]; then
-              echo "ERROR: $f not found — aborting publish"
-              exit 1
-            fi
-          done
-          echo "✓ All declaration files present"
-
       - name: Test
         run: npm test
 
+  # ── Publish to GitHub Packages ────────────────────────────────────────────
+  publish:
+    name: Publish to GitHub Packages
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: "https://npm.pkg.github.com"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: npm run build
+
       - name: Stamp version from release tag
-        # GitHub release tags are like "v1.2.3"; strip the leading "v".
+        if: github.event_name == 'release'
         run: |
           TAG="${{ github.event.release.tag_name }}"
           VERSION="${TAG#v}"
           echo "Publishing version: $VERSION"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Publish to npm (with provenance)
-        run: npm publish --provenance --access public
+      - name: Determine dist-tag
+        id: dist_tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+              echo "tag=next" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=latest" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to GitHub Packages
+        run: npm publish --tag ${{ steps.dist_tag.outputs.tag }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

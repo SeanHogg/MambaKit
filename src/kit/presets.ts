@@ -2,7 +2,7 @@
  * presets.ts – Model size presets and config resolver for MambaKit (v2.0.0).
  */
 
-import type { HybridMambaModelConfig, LayerSpec, LayerType } from 'mambacode.js';
+import type { HybridMambaModelConfig, LayerSpec, LayerType } from '@seanhogg/mambacode.js';
 import type { MambaSessionOptions } from './session.js';
 
 // ── Model size presets ────────────────────────────────────────────────────────

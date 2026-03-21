@@ -1,5 +1,5 @@
 {
-  "name": "mambakit",
+  "name": "@seanhogg/mambakit",
   "version": "1.0.0",
   "description": "Opinionated facade over MambaCode.js — on-device AI in a single import",
   "main": "dist/kit/index.js",
@@ -55,10 +55,11 @@
     "node": ">=18.0.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   },
   "dependencies": {
-    "mambacode.js": "^1.0.2"
+    "@seanhogg/mambacode.js": "file:../mambacodejs/seanhogg-mambacode.js-1.0.2.tgz"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
