@@ -15,17 +15,18 @@ const STORE_NAME = 'checkpoints';
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
-function openDB(): Promise<IDBDatabase> {
+function openDB(idb?: IDBFactory): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-        if (typeof indexedDB === 'undefined') {
+        const factory = idb ?? (typeof indexedDB !== 'undefined' ? indexedDB : undefined);
+        if (!factory) {
             reject(new MambaKitError(
                 'STORAGE_UNAVAILABLE',
-                'IndexedDB is not available in this environment.',
+                'IndexedDB is not available in this environment. Pass an idbFactory option (e.g. from fake-indexeddb) for Node.js support.',
             ));
             return;
         }
 
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        const req = factory.open(DB_NAME, DB_VERSION);
 
         req.onupgradeneeded = (e) => {
             const db = (e.target as IDBOpenDBRequest).result;
@@ -43,8 +44,8 @@ function openDB(): Promise<IDBDatabase> {
     });
 }
 
-export async function saveToIndexedDB(key: string, buffer: ArrayBuffer): Promise<void> {
-    const db = await openDB();
+export async function saveToIndexedDB(key: string, buffer: ArrayBuffer, idb?: IDBFactory): Promise<void> {
+    const db = await openDB(idb);
     return new Promise((resolve, reject) => {
         const tx    = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
@@ -60,8 +61,8 @@ export async function saveToIndexedDB(key: string, buffer: ArrayBuffer): Promise
     });
 }
 
-export async function loadFromIndexedDB(key: string): Promise<ArrayBuffer | undefined> {
-    const db = await openDB();
+export async function loadFromIndexedDB(key: string, idb?: IDBFactory): Promise<ArrayBuffer | undefined> {
+    const db = await openDB(idb);
     return new Promise((resolve, reject) => {
         const tx    = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);

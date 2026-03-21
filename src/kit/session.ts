@@ -93,6 +93,22 @@ export interface MambaSessionOptions {
      *   'zamba' — every 6th layer is attention, rest mamba3
      */
     layerSchedule?  : LayerSpec[] | 'jamba' | 'zamba';
+    /**
+     * Pre-created GPUAdapter to use instead of calling navigator.gpu.requestAdapter().
+     * Use this in Node.js environments with @webgpu/node:
+     *   import { create as createGPU } from '@webgpu/node';
+     *   const gpuAdapter = await createGPU().requestAdapter();
+     * When provided, `powerPreference` and `allowCpuFallback` are ignored.
+     */
+    gpuAdapter?: GPUAdapter;
+    /**
+     * IDBFactory to use instead of the global `indexedDB`.
+     * Use this in Node.js environments with fake-indexeddb:
+     *   import { IDBFactory } from 'fake-indexeddb';
+     *   const idbFactory = new IDBFactory();
+     * When provided, the 'indexedDB' storage target uses this factory.
+     */
+    idbFactory?: IDBFactory;
     /** WebGPU power preference. Default: 'high-performance'. */
     powerPreference?: 'high-performance' | 'low-power';
     /**
@@ -178,13 +194,14 @@ const RETRY_BACKOFF_FACTOR = 2;
 export type GpuMode = 'webgpu' | 'cpu-fallback';
 
 export class MambaSession {
-    private _device    : GPUDevice;
-    private _tokenizer : BPETokenizer;
-    private _model     : HybridMambaModel;
-    private _trainer   : MambaTrainer;
-    private _name      : string;
-    private _destroyed = false;
-    private _gpuMode   : GpuMode = 'webgpu';
+    private _device     : GPUDevice;
+    private _tokenizer  : BPETokenizer;
+    private _model      : HybridMambaModel;
+    private _trainer    : MambaTrainer;
+    private _name       : string;
+    private _destroyed  = false;
+    private _gpuMode    : GpuMode = 'webgpu';
+    private _idbFactory : IDBFactory | undefined;
 
     /**
      * Whether the session is running on a real GPU ('webgpu') or a software
@@ -194,19 +211,21 @@ export class MambaSession {
     get gpuMode(): GpuMode { return this._gpuMode; }
 
     private constructor(
-        device    : GPUDevice,
-        tokenizer : BPETokenizer,
-        model     : HybridMambaModel,
-        trainer   : MambaTrainer,
-        name      : string,
-        gpuMode   : GpuMode = 'webgpu',
+        device      : GPUDevice,
+        tokenizer   : BPETokenizer,
+        model       : HybridMambaModel,
+        trainer     : MambaTrainer,
+        name        : string,
+        gpuMode     : GpuMode = 'webgpu',
+        idbFactory? : IDBFactory,
     ) {
-        this._device    = device;
-        this._tokenizer = tokenizer;
-        this._model     = model;
-        this._trainer   = trainer;
-        this._name      = name;
-        this._gpuMode   = gpuMode;
+        this._device      = device;
+        this._tokenizer   = tokenizer;
+        this._model       = model;
+        this._trainer     = trainer;
+        this._name        = name;
+        this._gpuMode     = gpuMode;
+        this._idbFactory  = idbFactory;
     }
 
     // ── Static factory ─────────────────────────────────────────────────────────
@@ -227,54 +246,69 @@ export class MambaSession {
         emit('gpu', 0.0, 'Initialising WebGPU…');
         let device: GPUDevice;
         let gpuMode: GpuMode = 'webgpu';
-        try {
-            const result = await initWebGPU({
-                powerPreference: options.powerPreference ?? 'high-performance',
-            });
-            device = result.device;
-        } catch (primaryErr) {
-            if (!options.allowCpuFallback) {
-                throw new MambaKitError(
-                    'GPU_UNAVAILABLE',
-                    `WebGPU initialisation failed: ${(primaryErr as Error).message}. ` +
-                    `Set allowCpuFallback: true to attempt a software (CPU) fallback.`,
-                    primaryErr,
-                );
-            }
 
-            // Attempt software (CPU) adapter — available in Chrome with
-            // --enable-unsafe-webgpu or in environments with a WARP/SwiftShader adapter.
-            emit('gpu', 0.4,
-                `WebGPU unavailable (${(primaryErr as Error).message}); ` +
-                `attempting CPU software fallback — performance will be degraded.`);
-
-            if (typeof navigator === 'undefined' || !navigator.gpu) {
-                throw new MambaKitError(
-                    'GPU_UNAVAILABLE',
-                    'WebGPU is not available in this environment and no software adapter can be requested.',
-                    primaryErr,
-                );
-            }
-
+        if (options.gpuAdapter != null) {
+            // Adapter injected externally (e.g. @webgpu/node in Node.js)
             try {
-                const fallbackAdapter = await navigator.gpu.requestAdapter({
-                    powerPreference: 'low-power',
-                    forceFallbackAdapter: true,
-                });
-                if (!fallbackAdapter) throw new Error('requestAdapter returned null');
-                device   = await fallbackAdapter.requestDevice();
-                gpuMode  = 'cpu-fallback';
-            } catch (fallbackErr) {
+                device = await options.gpuAdapter.requestDevice();
+            } catch (err) {
                 throw new MambaKitError(
                     'GPU_UNAVAILABLE',
-                    `WebGPU unavailable and CPU fallback failed: ${(fallbackErr as Error).message}`,
-                    fallbackErr,
+                    `Failed to acquire GPUDevice from provided gpuAdapter: ${(err as Error).message}`,
+                    err,
                 );
             }
+            emit('gpu', 1.0, 'WebGPU ready (injected adapter)');
+        } else {
+            try {
+                const result = await initWebGPU({
+                    powerPreference: options.powerPreference ?? 'high-performance',
+                });
+                device = result.device;
+            } catch (primaryErr) {
+                if (!options.allowCpuFallback) {
+                    throw new MambaKitError(
+                        'GPU_UNAVAILABLE',
+                        `WebGPU initialisation failed: ${(primaryErr as Error).message}. ` +
+                        `Set allowCpuFallback: true to attempt a software (CPU) fallback.`,
+                        primaryErr,
+                    );
+                }
+
+                // Attempt software (CPU) adapter — available in Chrome with
+                // --enable-unsafe-webgpu or in environments with a WARP/SwiftShader adapter.
+                emit('gpu', 0.4,
+                    `WebGPU unavailable (${(primaryErr as Error).message}); ` +
+                    `attempting CPU software fallback — performance will be degraded.`);
+
+                if (typeof navigator === 'undefined' || !navigator.gpu) {
+                    throw new MambaKitError(
+                        'GPU_UNAVAILABLE',
+                        'WebGPU is not available in this environment and no software adapter can be requested.',
+                        primaryErr,
+                    );
+                }
+
+                try {
+                    const fallbackAdapter = await navigator.gpu.requestAdapter({
+                        powerPreference: 'low-power',
+                        forceFallbackAdapter: true,
+                    });
+                    if (!fallbackAdapter) throw new Error('requestAdapter returned null');
+                    device   = await fallbackAdapter.requestDevice();
+                    gpuMode  = 'cpu-fallback';
+                } catch (fallbackErr) {
+                    throw new MambaKitError(
+                        'GPU_UNAVAILABLE',
+                        `WebGPU unavailable and CPU fallback failed: ${(fallbackErr as Error).message}`,
+                        fallbackErr,
+                    );
+                }
+            }
+            emit('gpu', 1.0, gpuMode === 'cpu-fallback'
+                ? 'CPU software adapter ready (degraded performance)'
+                : 'WebGPU ready');
         }
-        emit('gpu', 1.0, gpuMode === 'cpu-fallback'
-            ? 'CPU software adapter ready (degraded performance)'
-            : 'WebGPU ready');
 
         // Step 2 — Tokenizer
         emit('tokenizer', 0.0, 'Loading tokenizer…');
@@ -346,7 +380,7 @@ export class MambaSession {
             emit('weights', 1.0, 'Checkpoint loaded');
         }
 
-        return new MambaSession(device, tokenizer, model, trainer, name, gpuMode);
+        return new MambaSession(device, tokenizer, model, trainer, name, gpuMode, options.idbFactory);
     }
 
     // ── Text generation ────────────────────────────────────────────────────────
@@ -463,7 +497,7 @@ export class MambaSession {
 
         switch (storage) {
             case 'indexedDB':
-                await saveToIndexedDB(key, buffer);
+                await saveToIndexedDB(key, buffer, this._idbFactory);
                 break;
             case 'download':
                 await triggerDownload(filename, buffer);
@@ -486,7 +520,7 @@ export class MambaSession {
 
         switch (storage) {
             case 'indexedDB': {
-                buffer = await loadFromIndexedDB(key);
+                buffer = await loadFromIndexedDB(key, this._idbFactory);
                 break;
             }
             case 'fileSystem': {
