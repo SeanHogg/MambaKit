@@ -1,8 +1,8 @@
 # MambaKit
 
-> **Opinionated facade over [MambaCode.js](https://www.npmjs.com/package/mambacode.js)** — on-device AI in a single import.
+> **Opinionated facade over [MambaCode.js](https://www.npmjs.com/package/@seanhogg/mambacode.js)** — on-device AI in a single import.
 
-[![npm](https://img.shields.io/npm/v/mambakit)](https://www.npmjs.com/package/mambakit)
+[![npm](https://img.shields.io/npm/v/@seanhogg/mambakit)](https://www.npmjs.com/package/@seanhogg/mambakit)
 [![CI](https://github.com/SeanHogg/MambaKit/actions/workflows/ci.yml/badge.svg)](https://github.com/SeanHogg/MambaKit/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
