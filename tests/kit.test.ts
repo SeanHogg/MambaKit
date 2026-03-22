@@ -65,7 +65,7 @@ jest.unstable_mockModule('@seanhogg/mambacode.js', () => ({
     initWebGPU  : jest.fn<() => Promise<{ device: GPUDevice; adapter: unknown }>>()
         .mockResolvedValue({ device: mockDevice, adapter: {} }),
     BPETokenizer: jest.fn().mockImplementation(() => mockTokenizer),
-    MambaModel  : jest.fn().mockImplementation(() => mockModel),
+    HybridMambaModel: jest.fn().mockImplementation(() => mockModel),
     MambaTrainer: jest.fn().mockImplementation(() => mockTrainer),
 }));
 
