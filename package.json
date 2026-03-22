@@ -59,10 +59,10 @@
     "registry": "https://registry.npmjs.org"
   },
   "peerDependencies": {
-    "@seanhogg/mambacode.js": "^1.0.2"
+    "@seanhogg/mambacode.js": "^2.0.0"
   },
   "devDependencies": {
-    "@seanhogg/mambacode.js": "file:../mambacodejs/seanhogg-mambacode.js-1.0.2.tgz",
+    "@seanhogg/mambacode.js": "^2.0.0",
     "@types/jest": "^29.5.0",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
