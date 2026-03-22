@@ -61,7 +61,7 @@ const mockTrainer = {
 
 // ── Mock mambacode.js BEFORE any imports that use it ─────────────────────────
 
-jest.unstable_mockModule('mambacode.js', () => ({
+jest.unstable_mockModule('@seanhogg/mambacode.js', () => ({
     initWebGPU  : jest.fn<() => Promise<{ device: GPUDevice; adapter: unknown }>>()
         .mockResolvedValue({ device: mockDevice, adapter: {} }),
     BPETokenizer: jest.fn().mockImplementation(() => mockTokenizer),
