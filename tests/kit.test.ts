@@ -195,9 +195,9 @@ describe('MambaKitError', () => {
 // ── resolveModelConfig ────────────────────────────────────────────────────────
 
 describe('resolveModelConfig', () => {
-    test('medium preset (default) fills all required fields', () => {
+    test('nano preset (default) fills all required fields', () => {
         const cfg = resolveModelConfig({}, 5000);
-        expect(cfg).toMatchObject({ dModel: 512, numLayers: 8, dState: 16, dConv: 4, expand: 2, vocabSize: 5000 });
+        expect(cfg).toMatchObject({ dModel: 128, numLayers: 4, dState: 16, dConv: 4, expand: 2, vocabSize: 5000 });
         expect(typeof cfg.eosId).toBe('number');
     });
 
@@ -220,8 +220,8 @@ describe('resolveModelConfig', () => {
     });
 
     test('custom overrides dModel and numLayers', () => {
-        const cfg = resolveModelConfig({ modelSize: 'custom', modelConfig: { dModel: 333, numLayers: 7 } }, 2000);
-        expect(cfg.dModel).toBe(333);
+        const cfg = resolveModelConfig({ modelSize: 'custom', modelConfig: { dModel: 256, numLayers: 7, nHeads: 4 } }, 2000);
+        expect(cfg.dModel).toBe(256);
         expect(cfg.numLayers).toBe(7);
         expect(cfg.vocabSize).toBe(2000);
     });
