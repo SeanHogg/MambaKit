@@ -1,6 +1,6 @@
 {
   "name": "@seanhogg/mambakit",
-  "version": "1.0.0",
+  "version": "2026.3.21",
   "description": "Opinionated facade over MambaCode.js — on-device AI in a single import",
   "main": "dist/kit/index.js",
   "module": "dist/kit/index.js",
@@ -59,10 +59,10 @@
     "registry": "https://registry.npmjs.org"
   },
   "peerDependencies": {
-    "@seanhogg/mambacode.js": "^2.0.0"
+    "@seanhogg/mambacode.js": "^2026.3.21"
   },
   "devDependencies": {
-    "@seanhogg/mambacode.js": "^2.0.0",
+    "@seanhogg/mambacode.js": "^2026.3.21",
     "@types/jest": "^29.5.0",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
